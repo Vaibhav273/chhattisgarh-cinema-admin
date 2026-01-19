@@ -1,0 +1,16 @@
+.language-list-card {
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.language-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #262626;
+}
+
+.language-native {
+    font-size: 13px;
+    color: #8c8c8c;
+    margin-top: 2px;
+}

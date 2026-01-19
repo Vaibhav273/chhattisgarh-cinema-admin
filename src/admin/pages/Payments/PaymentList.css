@@ -1,0 +1,55 @@
+.stat-card-payment {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+}
+
+.stat-card-payment:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.payment-list-card {
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.user-email {
+    font-weight: 500;
+    color: #1890ff;
+}
+
+.amount-text {
+    font-weight: 600;
+    font-size: 15px;
+    color: #52c41a;
+}
+
+.amount-large {
+    font-weight: 700;
+    font-size: 20px;
+    color: #52c41a;
+}
+
+.order-id,
+.payment-id {
+    background: #f5f5f5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+}
+
+.payment-table .ant-table-thead>tr>th {
+    background: #fafafa;
+    font-weight: 600;
+}
+
+.payment-table .ant-table-tbody>tr:hover {
+    background: #f5f5f5;
+}
+
+.transaction-details .ant-descriptions-item-label {
+    font-weight: 600;
+    background: #fafafa;
+}

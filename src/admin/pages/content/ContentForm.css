@@ -1,0 +1,18 @@
+.content-form-card {
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.content-form-card .ant-form-item-label>label {
+    font-weight: 600;
+}
+
+.content-form-card .ant-divider-horizontal.ant-divider-with-text {
+    margin: 32px 0 24px;
+}
+
+.content-form-card .ant-divider-inner-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: #262626;
+}

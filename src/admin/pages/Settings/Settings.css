@@ -1,0 +1,17 @@
+.settings-card {
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.settings-card .ant-tabs-tab {
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.settings-card .ant-form-item-label>label {
+    font-weight: 600;
+}
+
+.settings-card .ant-divider {
+    margin: 32px 0;
+}
