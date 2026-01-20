@@ -1,11 +1,24 @@
 @import "tailwindcss";
 
-body,
-html,
-#root {
-  font-family: 'Poppins', sans-serif !important;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+:root {
+  --primary: #e50914;
+  --primary-hover: #f40612;
+  --dark-bg: #141414;
+  --card-bg: #221f1f;
+  --text: #ffffff;
+  --text-secondary: #808080;
+}
+
+
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 /* Ensure headings use proper weights */

@@ -1,527 +1,178 @@
-import React, { useEffect, useState } from "react";
-import {
-  Card,
-  Row,
-  Col,
-  Statistic,
-  Table,
-  Tag,
-  Space,
-  Typography,
-  Spin,
-} from "antd";
-import {
-  UserOutlined,
-  VideoCameraOutlined,
-  DollarOutlined,
-  EyeOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-  CrownOutlined,
-  PlayCircleOutlined,
-  TrophyOutlined,
-} from "@ant-design/icons";
+import React from "react";
 import { motion } from "framer-motion";
-import { Line, Pie } from "@ant-design/charts";
 import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from "firebase/firestore";
-import { db } from "../../../config/firebase";
-import type { DashboardStats, Content, Transaction } from "../../types";
-import "./Dashboard.css";
-
-const { Text } = Typography;
+  TrendingUp,
+  Users,
+  Film,
+  DollarSign,
+  ArrowUpRight,
+  Star,
+} from "lucide-react";
 
 const Dashboard: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    activeSubscribers: 0,
-    totalRevenue: 0,
-    monthlyRevenue: 0,
-    totalContent: 0,
-    totalViews: 0,
-    revenueGrowth: 0,
-    userGrowth: 0,
-    subscriberGrowth: 0,
-    contentGrowth: 0,
-  });
-  const [recentContent, setRecentContent] = useState<Content[]>([]);
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
-    [],
-  );
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch total users
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      const totalUsers = usersSnapshot.size;
-
-      // Fetch active subscribers
-      const subscribersQuery = query(
-        collection(db, "users"),
-        where("subscription.status", "==", "active"),
-      );
-      const subscribersSnapshot = await getDocs(subscribersQuery);
-      const activeSubscribers = subscribersSnapshot.size;
-
-      // Fetch total content
-      const contentSnapshot = await getDocs(collection(db, "content"));
-      const totalContent = contentSnapshot.size;
-
-      // Calculate total views
-      const totalViews = contentSnapshot.docs.reduce(
-        (sum, doc) => sum + (doc.data().views || 0),
-        0,
-      );
-
-      // Fetch transactions
-      const transactionsQuery = query(
-        collection(db, "transactions"),
-        where("status", "==", "success"),
-        orderBy("createdAt", "desc"),
-        limit(10),
-      );
-      const transactionsSnapshot = await getDocs(transactionsQuery);
-      const transactions = transactionsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Transaction[];
-
-      // Calculate total revenue
-      const totalRevenue =
-        transactions.reduce((sum, t) => sum + t.amount, 0) / 100;
-
-      // Fetch recent content
-      const recentQuery = query(
-        collection(db, "content"),
-        orderBy("createdAt", "desc"),
-        limit(5),
-      );
-      const recentSnapshot = await getDocs(recentQuery);
-      const recent = recentSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Content[];
-
-      setStats({
-        totalUsers,
-        activeSubscribers,
-        totalRevenue,
-        monthlyRevenue: totalRevenue * 0.3, // Mock monthly revenue
-        totalContent,
-        totalViews,
-        revenueGrowth: 12.5,
-        userGrowth: 8.3,
-        subscriberGrowth: 15.7,
-        contentGrowth: 5.2,
-      });
-
-      setRecentContent(recent);
-      setRecentTransactions(transactions);
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const statsCards = [
+  const stats = [
     {
-      title: "Total Users",
-      value: stats.totalUsers,
-      prefix: <UserOutlined />,
-      suffix: "",
-      precision: 0,
-      growth: stats.userGrowth,
-      color: "#1890ff",
-      bgGradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      icon: Users,
+      label: "Total Users",
+      value: "12,459",
+      change: "+12.5%",
+      gradient: "from-blue-400 to-cyan-500",
+      bg: "from-blue-50 to-cyan-50",
     },
     {
-      title: "Active Subscribers",
-      value: stats.activeSubscribers,
-      prefix: <CrownOutlined />,
-      suffix: "",
-      precision: 0,
-      growth: stats.subscriberGrowth,
-      color: "#52c41a",
-      bgGradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+      icon: Film,
+      label: "Content Library",
+      value: "1,284",
+      change: "+8.2%",
+      gradient: "from-purple-400 to-pink-500",
+      bg: "from-purple-50 to-pink-50",
     },
     {
-      title: "Total Revenue",
-      value: stats.totalRevenue,
-      prefix: "₹",
-      suffix: "",
-      precision: 0,
-      growth: stats.revenueGrowth,
-      color: "#722ed1",
-      bgGradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+      icon: DollarSign,
+      label: "Total Revenue",
+      value: "₹2.4L",
+      change: "+23.1%",
+      gradient: "from-orange-400 to-pink-500",
+      bg: "from-orange-50 to-pink-50",
     },
     {
-      title: "Total Content",
-      value: stats.totalContent,
-      prefix: <VideoCameraOutlined />,
-      suffix: "",
-      precision: 0,
-      growth: stats.contentGrowth,
-      color: "#fa8c16",
-      bgGradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-    },
-    {
-      title: "Total Views",
-      value: stats.totalViews,
-      prefix: <EyeOutlined />,
-      suffix: "",
-      precision: 0,
-      growth: 23.1,
-      color: "#eb2f96",
-      bgGradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+      icon: TrendingUp,
+      label: "Active Subscriptions",
+      value: "8,542",
+      change: "+15.3%",
+      gradient: "from-green-400 to-emerald-500",
+      bg: "from-green-50 to-emerald-50",
     },
   ];
-
-  const revenueData = [
-    { month: "Jan", revenue: 45000, users: 120 },
-    { month: "Feb", revenue: 52000, users: 145 },
-    { month: "Mar", revenue: 48000, users: 135 },
-    { month: "Apr", revenue: 61000, users: 178 },
-    { month: "May", revenue: 58000, users: 165 },
-    { month: "Jun", revenue: 71000, users: 205 },
-    { month: "Jul", revenue: 85000, users: 235 },
-    { month: "Aug", revenue: 78000, users: 218 },
-    { month: "Sep", revenue: 92000, users: 267 },
-    { month: "Oct", revenue: 88000, users: 245 },
-    { month: "Nov", revenue: 95000, users: 278 },
-    { month: "Dec", revenue: 105000, users: 312 },
-  ];
-
-  const contentTypeData = [
-    { type: "Movies", value: 45 },
-    { type: "Web Series", value: 30 },
-    { type: "Short Films", value: 15 },
-    { type: "Events", value: 10 },
-  ];
-
-  const revenueConfig = {
-    data: revenueData,
-    xField: "month",
-    yField: "revenue",
-    smooth: true,
-    height: 300,
-    color: "#1890ff",
-    areaStyle: {
-      fill: "l(270) 0:#ffffff 0.5:#7ec2f3 1:#1890ff",
-    },
-    animation: {
-      appear: {
-        animation: "wave-in",
-        duration: 2000,
-      },
-    },
-  };
-
-  const contentTypeConfig = {
-    data: contentTypeData,
-    angleField: "value",
-    colorField: "type",
-    radius: 0.8,
-    height: 300,
-    label: {
-      type: "outer",
-      content: "{name} {percentage}",
-    },
-    interactions: [{ type: "element-active" }],
-    animation: {
-      appear: {
-        animation: "fade-in",
-        duration: 1500,
-      },
-    },
-  };
-
-  const columns = [
-    {
-      title: "Thumbnail",
-      dataIndex: "thumbnailUrl",
-      key: "thumbnailUrl",
-      width: 100,
-      render: (url: string) => (
-        <img src={url} alt="thumbnail" className="content-thumbnail" />
-      ),
-    },
-    {
-      title: "Title",
-      dataIndex: "title",
-      key: "title",
-      render: (text: string) => <Text strong>{text}</Text>,
-    },
-    {
-      title: "Type",
-      dataIndex: "type",
-      key: "type",
-      render: (type: string) => (
-        <Tag
-          color={
-            type === "movie"
-              ? "blue"
-              : type === "series"
-                ? "green"
-                : type === "short_film"
-                  ? "orange"
-                  : "purple"
-          }
-        >
-          {type.toUpperCase()}
-        </Tag>
-      ),
-    },
-    {
-      title: "Views",
-      dataIndex: "views",
-      key: "views",
-      render: (views: number) => (
-        <Space>
-          <EyeOutlined />
-          {views?.toLocaleString() || 0}
-        </Space>
-      ),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (status: string) => (
-        <Tag
-          color={
-            status === "published"
-              ? "success"
-              : status === "draft"
-                ? "warning"
-                : "default"
-          }
-        >
-          {status.toUpperCase()}
-        </Tag>
-      ),
-    },
-  ];
-
-  const transactionColumns = [
-    {
-      title: "User Email",
-      dataIndex: "userEmail",
-      key: "userEmail",
-    },
-    {
-      title: "Plan",
-      dataIndex: "planName",
-      key: "planName",
-      render: (text: string) => <Tag color="blue">{text}</Tag>,
-    },
-    {
-      title: "Amount",
-      dataIndex: "amount",
-      key: "amount",
-      render: (amount: number) => `₹${(amount / 100).toLocaleString()}`,
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (status: string) => (
-        <Tag color={status === "success" ? "success" : "error"}>
-          {status.toUpperCase()}
-        </Tag>
-      ),
-    },
-    {
-      title: "Date",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (date: any) => new Date(date.seconds * 1000).toLocaleDateString(),
-    },
-  ];
-
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <Spin size="large" tip="Loading dashboard..." />
-      </div>
-    );
-  }
 
   return (
-    <div className="dashboard-container">
-      {/* Stats Cards */}
-      <Row gutter={[16, 16]}>
-        {statsCards.map((stat, index) => (
-          <Col xs={24} sm={12} lg={8} xl={4.8} key={index}>
+    <div className="space-y-8">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
             <motion.div
+              key={index}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1, duration: 0.5 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -8, scale: 1.02 }}
+              className={`relative overflow-hidden bg-gradient-to-br ${stat.bg} rounded-3xl p-6 border border-white/50 shadow-xl shadow-slate-200/50`}
             >
-              <Card
-                className="stat-card"
-                style={{
-                  background: stat.bgGradient,
-                }}
-                bordered={false}
-              >
-                <div className="stat-content">
-                  <div className="stat-header">
-                    <Text className="stat-title">{stat.title}</Text>
-                    <div className="stat-icon">{stat.prefix}</div>
-                  </div>
-                  <Statistic
-                    title={
-                      <span style={{
-                        fontFamily: 'Poppins',
-                        color: '#8c8c8c',
-                        fontWeight: 500,
-                        fontSize: '14px'
-                      }}>
-                        Total Revenue
-                      </span>
-                    }
-                    value={stats.totalRevenue}
-                    formatter={(value) => (
-                      <span style={{
-                        fontFamily: 'Poppins',
-                        fontWeight: 700,
-                        fontSize: '32px',
-                        color: '#fff'
-                      }}>
-                        {value}
-                      </span>
-                    )}
-                    prefix={<span style={{ color: '#faad14' }}>₹</span>}
-                  />
-                  <div className="stat-growth">
-                    {stat.growth > 0 ? (
-                      <ArrowUpOutlined style={{ color: "#fff" }} />
-                    ) : (
-                      <ArrowDownOutlined style={{ color: "#fff" }} />
-                    )}
-                    <Text className="growth-text">
-                      {Math.abs(stat.growth)}% from last month
-                    </Text>
-                  </div>
+              <div className="flex items-start justify-between mb-6">
+                <div
+                  className={`w-14 h-14 bg-gradient-to-br ${stat.gradient} rounded-2xl flex items-center justify-center shadow-lg`}
+                >
+                  <Icon size={24} className="text-white" strokeWidth={2.5} />
                 </div>
-              </Card>
+                <div className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-600 rounded-full">
+                  <ArrowUpRight size={14} strokeWidth={3} />
+                  <span className="text-xs font-bold">{stat.change}</span>
+                </div>
+              </div>
+
+              <h3 className="text-4xl font-black text-slate-800 mb-1">
+                {stat.value}
+              </h3>
+              <p className="text-slate-600 text-sm font-semibold">
+                {stat.label}
+              </p>
             </motion.div>
-          </Col>
-        ))}
-      </Row>
+          );
+        })}
+      </div>
 
-      {/* Charts Row */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col xs={24} lg={16}>
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-          >
-            <Card
-              title={
-                <Space>
-                  <DollarOutlined />
-                  <span>Revenue Overview</span>
-                </Space>
-              }
-              bordered={false}
-              className="chart-card"
-            >
-              <Line {...revenueConfig} />
-            </Card>
-          </motion.div>
-        </Col>
-
-        <Col xs={24} lg={8}>
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.7, duration: 0.5 }}
-          >
-            <Card
-              title={
-                <Space>
-                  <TrophyOutlined />
-                  <span>Content Distribution</span>
-                </Space>
-              }
-              bordered={false}
-              className="chart-card"
-            >
-              <Pie {...contentTypeConfig} />
-            </Card>
-          </motion.div>
-        </Col>
-      </Row>
-
-      {/* Recent Content */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8, duration: 0.5 }}
-        style={{ marginTop: 24 }}
-      >
-        <Card
-          title={
-            <Space>
-              <PlayCircleOutlined />
-              <span>Recent Content</span>
-            </Space>
-          }
-          bordered={false}
-          className="table-card"
+      {/* Quick Actions & Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-3xl p-6 border border-white/50 shadow-xl"
         >
-          <Table
-            dataSource={recentContent}
-            columns={columns}
-            rowKey="id"
-            pagination={false}
-            scroll={{ x: 800 }}
-          />
-        </Card>
-      </motion.div>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-slate-800">
+              Recent Activity
+            </h3>
+            <button className="text-orange-500 text-sm font-semibold hover:underline">
+              View All
+            </button>
+          </div>
 
-      {/* Recent Transactions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9, duration: 0.5 }}
-        style={{ marginTop: 24 }}
-      >
-        <Card
-          title={
-            <Space>
-              <DollarOutlined />
-              <span>Recent Transactions</span>
-            </Space>
-          }
-          bordered={false}
-          className="table-card"
+          <div className="space-y-4">
+            {[
+              {
+                title: "New user registered",
+                time: "2 min ago",
+                icon: Users,
+                color: "blue",
+              },
+              {
+                title: 'Movie "Mor Chhainha Bhuinya" uploaded',
+                time: "15 min ago",
+                icon: Film,
+                color: "purple",
+              },
+              {
+                title: "Payment of ₹299 received",
+                time: "1 hour ago",
+                icon: DollarSign,
+                color: "green",
+              },
+            ].map((activity, i) => {
+              const Icon = activity.icon;
+              return (
+                <motion.div
+                  key={i}
+                  whileHover={{ x: 4 }}
+                  className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  <div
+                    className={`w-12 h-12 bg-${activity.color}-100 rounded-xl flex items-center justify-center`}
+                  >
+                    <Icon size={20} className={`text-${activity.color}-600`} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-slate-800 font-semibold text-sm">
+                      {activity.title}
+                    </p>
+                    <p className="text-slate-500 text-xs">{activity.time}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* Quick Stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-gradient-to-br from-orange-400 to-pink-500 rounded-3xl p-6 text-white shadow-xl shadow-orange-400/30"
         >
-          <Table
-            dataSource={recentTransactions}
-            columns={transactionColumns}
-            rowKey="id"
-            pagination={false}
-            scroll={{ x: 800 }}
-          />
-        </Card>
-      </motion.div>
+          <div className="flex items-center gap-2 mb-4">
+            <Star size={20} fill="white" />
+            <h3 className="text-lg font-bold">Top Rated</h3>
+          </div>
+          <h2 className="text-5xl font-black mb-2">4.8</h2>
+          <p className="text-white/80 text-sm mb-4">Average User Rating</p>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>5 Stars</span>
+              <span className="font-bold">68%</span>
+            </div>
+            <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white rounded-full"
+                style={{ width: "68%" }}
+              ></div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 };
