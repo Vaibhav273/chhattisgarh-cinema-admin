@@ -384,14 +384,28 @@ const Dashboard: React.FC = () => {
                     <div className="stat-icon">{stat.prefix}</div>
                   </div>
                   <Statistic
-                    value={stat.value}
-                    precision={stat.precision}
-                    valueStyle={{
-                      color: "#fff",
-                      fontSize: 28,
-                      fontWeight: 700,
-                    }}
-                    prefix={typeof stat.prefix === "string" ? stat.prefix : ""}
+                    title={
+                      <span style={{
+                        fontFamily: 'Poppins',
+                        color: '#8c8c8c',
+                        fontWeight: 500,
+                        fontSize: '14px'
+                      }}>
+                        Total Revenue
+                      </span>
+                    }
+                    value={stats.totalRevenue}
+                    formatter={(value) => (
+                      <span style={{
+                        fontFamily: 'Poppins',
+                        fontWeight: 700,
+                        fontSize: '32px',
+                        color: '#fff'
+                      }}>
+                        {value}
+                      </span>
+                    )}
+                    prefix={<span style={{ color: '#faad14' }}>₹</span>}
                   />
                   <div className="stat-growth">
                     {stat.growth > 0 ? (

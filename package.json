@@ -13,13 +13,16 @@
     "@ant-design/charts": "^2.6.7",
     "@ant-design/icons": "^6.1.0",
     "@ant-design/pro-components": "^2.8.10",
+    "@tailwindcss/vite": "^4.1.18",
     "antd": "^6.2.0",
     "dayjs": "^1.11.19",
     "firebase": "^12.8.0",
     "framer-motion": "^12.27.1",
+    "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.12.0"
+    "react-router-dom": "^7.12.0",
+    "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

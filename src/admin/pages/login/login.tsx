@@ -1,206 +1,166 @@
-import React, { useState } from "react";
-import { Form, Input, Button, Card, message, Typography } from "antd";
-import { MailOutlined, LockOutlined, GoogleOutlined } from "@ant-design/icons";
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-} from "firebase/auth";
-import { auth, db } from "../../../config/firebase";
-import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { doc, getDoc } from "firebase/firestore";
-import "./Login.css";
+  Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, Film,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  signInWithEmailAndPassword
+} from 'firebase/auth';
+import {
+  collection, getCountFromServer, doc, getDoc
+} from 'firebase/firestore';
+import { auth, db } from '../../../config/firebase'; // Path check कर लेना
+import { message } from 'antd';
 
-const { Title, Text } = Typography;
-
-const Login: React.FC = () => {
-  const [loading, setLoading] = useState(false);
+const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const onFinish = async (values: { email: string; password: string }) => {
+  // Right side stats states
+  const [moviesCount, setMoviesCount] = useState<number | null>(null);
+  const [seriesCount, setSeriesCount] = useState<number | null>(null);
+
+  // Load Firestore counts (Original logic)
+  useEffect(() => {
+    const loadCounts = async () => {
+      try {
+        const moviesSnap = await getCountFromServer(collection(db, 'movies'));
+        setMoviesCount(moviesSnap.data().count);
+        const seriesSnap = await getCountFromServer(collection(db, 'webseries'));
+        setSeriesCount(seriesSnap.data().count);
+      } catch (err) {
+        console.error('Error loading counts', err);
+      }
+    };
+    loadCounts();
+  }, []);
+
+  // --- ADMIN CHECK LOGIC ---
+  const checkAdminAccess = async (uid: string) => {
+    const adminDoc = await getDoc(doc(db, 'admins', uid));
+    if (adminDoc.exists()) {
+      message.success('Admin Access Granted');
+      navigate('/admin'); // Admin Dashboard पर भेजें
+      return true;
+    } else {
+      setError('Access Denied: You are not an authorized Admin.');
+      await auth.signOut();
+      return false;
+    }
+  };
+
+  // Your Original Email Login Handler
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        values.email,
-        values.password,
-      );
-
-      // Check if user is admin
-      const userDoc = await getDoc(doc(db, "admins", userCredential.user.uid));
-      if (!userDoc.exists()) {
-        message.error("You do not have admin access");
-        await auth.signOut();
-        return;
-      }
-
-      message.success("Login successful!");
-      navigate("/admin");
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      await checkAdminAccess(cred.user.uid);
     } catch (error: any) {
-      message.error(error.message || "Login failed");
+      setError('Invalid credentials or network error.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-
-      // Check if user is admin
-      const userDoc = await getDoc(doc(db, "admins", userCredential.user.uid));
-      if (!userDoc.exists()) {
-        message.error("You do not have admin access");
-        await auth.signOut();
-        return;
-      }
-
-      message.success("Login successful!");
-      navigate("/admin");
-    } catch (error: any) {
-      message.error(error.message || "Google login failed");
-    } finally {
-      setLoading(false);
-    }
+  const displayNumber = (value: number | null, fallback: string) => {
+    return value !== null ? value.toString() : fallback;
   };
 
   return (
-    <div className="login-container">
-      {/* Animated Background */}
-      <div className="login-background">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
+    <div className="min-h-screen bg-slate-950 text-white flex font-Poppins relative overflow-hidden">
+      {/* LEFT SIDE - YOUR ORIGINAL UI */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8 }}
+          className="w-full max-w-md"
+        >
+          <div className="mb-8">
+            <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent mb-3">
+              CG Cinema
+            </h1>
+            <h2 className="text-3xl font-bold text-white mb-2">Admin Panel</h2>
+            <p className="text-slate-400 text-lg">Manage your cinema empire</p>
+          </div>
+
+          <AnimatePresence>
+            {error && (
+              <motion.div className="mb-6 bg-red-900/20 border border-red-700/50 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle size={20} className="text-red-400" />
+                <p className="text-red-300 text-sm">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-slate-300 font-semibold mb-2 text-sm">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500" size={20} />
+                <input
+                  type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all"
+                  placeholder="admin@email.com" required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-semibold mb-2 text-sm">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500" size={20} />
+                <input
+                  type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-12 pr-12 py-4 text-white focus:border-amber-500 outline-none transition-all"
+                  placeholder="••••••••" required
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              type="submit" disabled={loading}
+              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-amber-900/30 flex items-center justify-center gap-3"
+            >
+              {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <LogIn size={20} />}
+              <span>Admin Login</span>
+            </motion.button>
+          </form>
+        </motion.div>
       </div>
 
-      {/* Login Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="login-card-wrapper"
-      >
-        <Card className="login-card" bordered={false}>
-          {/* Logo & Title */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="login-header"
-          >
-            <div className="logo-container">
-              <motion.div
-                animate={{
-                  rotate: [0, 360],
-                }}
-                transition={{
-                  duration: 20,
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
-                className="logo-icon"
-              >
-                🎬
-              </motion.div>
+      {/* RIGHT SIDE - YOUR ORIGINAL VISUALS */}
+      <div className="hidden lg:block lg:w-1/2 relative">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1574267432644-f770f8f5b7c5?w=1920&q=80')" }} />
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-900/60 via-slate-900/80 to-orange-900/60" />
+        <div className="relative z-10 h-full flex flex-col items-center justify-center p-12 text-center">
+          <Film size={60} className="text-amber-400 mb-6" />
+          <h2 className="text-5xl font-black text-white mb-4">Control Your <br /> <span className="text-amber-400">Cinema Empire</span></h2>
+          <div className="grid grid-cols-2 gap-8 mt-8">
+            <div className="text-center">
+              <p className="text-3xl font-black text-amber-400">{displayNumber(moviesCount, '200+')}</p>
+              <p className="text-slate-400">Movies</p>
             </div>
-            <Title level={2} className="login-title">
-              CG Cinema Admin
-            </Title>
-            <Text className="login-subtitle">
-              Welcome back! Please login to continue
-            </Text>
-          </motion.div>
-
-          {/* Login Form */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-          >
-            <Form
-              name="login"
-              onFinish={onFinish}
-              layout="vertical"
-              size="large"
-              className="login-form"
-            >
-              <Form.Item
-                name="email"
-                rules={[
-                  { required: true, message: "Please enter your email" },
-                  { type: "email", message: "Please enter a valid email" },
-                ]}
-              >
-                <Input
-                  prefix={<MailOutlined />}
-                  placeholder="Email"
-                  className="login-input"
-                />
-              </Form.Item>
-
-              <Form.Item
-                name="password"
-                rules={[
-                  { required: true, message: "Please enter your password" },
-                  { min: 6, message: "Password must be at least 6 characters" },
-                ]}
-              >
-                <Input.Password
-                  prefix={<LockOutlined />}
-                  placeholder="Password"
-                  className="login-input"
-                />
-              </Form.Item>
-
-              <Form.Item>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={loading}
-                  block
-                  className="login-button"
-                >
-                  Sign In
-                </Button>
-              </Form.Item>
-            </Form>
-
-            {/* Divider */}
-            <div className="login-divider">
-              <span>OR</span>
+            <div className="text-center">
+              <p className="text-3xl font-black text-amber-400">{displayNumber(seriesCount, '50+')}</p>
+              <p className="text-slate-400">Series</p>
             </div>
-
-            {/* Google Login */}
-            <Button
-              icon={<GoogleOutlined />}
-              onClick={handleGoogleLogin}
-              loading={loading}
-              block
-              size="large"
-              className="google-button"
-            >
-              Continue with Google
-            </Button>
-          </motion.div>
-
-          {/* Footer */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-            className="login-footer"
-          >
-            <Text type="secondary" className="footer-text">
-              © 2026 Chhattisgarh Cinema. All rights reserved.
-            </Text>
-          </motion.div>
-        </Card>
-      </motion.div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Login;
+export default LoginPage;

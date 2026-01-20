@@ -19,16 +19,38 @@ const App: React.FC = () => {
   return (
     <ConfigProvider
       theme={{
-        algorithm: theme.defaultAlgorithm,
+        algorithm: theme.darkAlgorithm,
         token: {
-          colorPrimary: "#1890ff",
-          colorSuccess: "#52c41a",
-          colorWarning: "#faad14",
-          colorError: "#ff4d4f",
-          colorInfo: "#1890ff",
-          borderRadius: 8,
-          fontSize: 14,
+          fontFamily: "'Poppins', sans-serif",
+          borderRadius: 12,
+          // The "Onyx Black" Palette
+          colorBgBase: '#02040a',      // True Cinema Black
+          colorBgContainer: '#0d1117', // Deep Slate for cards
+          colorPrimary: '#faad14',     // CG Cinema Gold
+          colorInfo: '#faad14',
+          colorSuccess: '#00ffa3',     // Neon Success
+          colorBgLayout: '#02040a',
+          // Text
+          colorTextBase: '#e6edf3',
+          colorTextSecondary: '#8b949e',
         },
+        components: {
+          Card: {
+            colorBgContainer: 'rgba(13, 17, 23, 0.8)', // Glass effect
+            borderRadiusLG: 20,
+          },
+          Table: {
+            headerBg: 'transparent',
+            headerColor: '#8b949e',
+            headerSplitColor: 'transparent',
+            rowHoverBg: 'rgba(250, 173, 20, 0.05)',
+          },
+          Menu: {
+            itemBg: 'transparent',
+            itemSelectedBg: 'rgba(250, 173, 20, 0.1)',
+            itemSelectedColor: '#faad14',
+          }
+        }
       }}
     >
       <BrowserRouter>

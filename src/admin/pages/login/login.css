@@ -1,225 +1,119 @@
-.login-container {
-    min-height: 100vh;
+/* src/admin/pages/Login/Login.css */
+.login-page {
+    height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: #02040a;
+    /* Fallback */
+    background-image: url('https://assets.nflxext.com/ffe/siteui/vlv3/f841d4c2-10bd-4091-851f-f0648d70f393/4067a993-e490-449e-8b43-b9136f32e2c2/IN-en-20220502-popsignuptwoweeks-perspective_alpha_website_large.jpg');
+    background-size: cover;
+    background-position: center;
     position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.login-background {
+.cinema-overlay {
     position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle, rgba(2, 4, 10, 0.4) 0%, rgba(2, 4, 10, 0.9) 100%);
+    z-index: 1;
+}
+
+.login-container-glass {
+    z-index: 2;
     width: 100%;
-    height: 100%;
-    overflow: hidden;
-}
-
-.gradient-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.6;
-    animation: float 20s infinite ease-in-out;
-}
-
-.orb-1 {
-    width: 500px;
-    height: 500px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    top: -10%;
-    left: -10%;
-    animation-delay: 0s;
-}
-
-.orb-2 {
-    width: 400px;
-    height: 400px;
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    bottom: -10%;
-    right: -10%;
-    animation-delay: 5s;
-}
-
-.orb-3 {
-    width: 350px;
-    height: 350px;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    animation-delay: 10s;
-}
-
-@keyframes float {
-
-    0%,
-    100% {
-        transform: translate(0, 0);
-    }
-
-    25% {
-        transform: translate(50px, 50px);
-    }
-
-    50% {
-        transform: translate(-30px, 80px);
-    }
-
-    75% {
-        transform: translate(40px, -40px);
-    }
-}
-
-.login-card-wrapper {
-    position: relative;
-    z-index: 10;
-    width: 100%;
-    max-width: 450px;
-    padding: 20px;
-}
-
-.login-card {
+    max-width: 420px;
+    padding: 48px 40px;
+    background: rgba(13, 17, 23, 0.75);
     backdrop-filter: blur(20px);
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 24px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    padding: 40px;
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .login-header {
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: 32px;
 }
 
-.logo-container {
+.brand-logo {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.custom-input {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #fff !important;
+    border-radius: 12px !important;
+    padding: 10px 16px !important;
+}
+
+.custom-input:hover,
+.custom-input:focus {
+    border-color: #faad14 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.input-icon {
+    color: #595959;
+}
+
+.forgot-container {
+    text-align: right;
+    margin-bottom: 24px;
+}
+
+.login-submit-btn {
+    height: 50px !important;
+    background: #faad14 !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    font-size: 16px !important;
+    box-shadow: 0 4px 15px rgba(250, 173, 20, 0.3) !important;
+}
+
+.login-submit-btn:hover {
+    transform: translateY(-2px);
+    background: #ffc53d !important;
+}
+
+.divider {
     display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
-}
-
-.logo-icon {
-    font-size: 60px;
-    display: inline-block;
-}
-
-.login-title {
-    margin-bottom: 8px !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-weight: 700;
-}
-
-.login-subtitle {
-    color: #8c8c8c;
-    font-size: 14px;
-}
-
-.login-form {
-    margin-top: 32px;
-}
-
-.login-input {
-    border-radius: 12px;
-    padding: 12px 16px;
-    border: 2px solid #f0f0f0;
-    transition: all 0.3s;
-}
-
-.login-input:hover,
-.login-input:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
-}
-
-.login-button {
-    height: 50px;
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 16px;
-    margin-top: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    transition: all 0.3s;
-}
-
-.login-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-}
-
-.login-divider {
-    text-align: center;
+    align-items: center;
     margin: 24px 0;
-    position: relative;
 }
 
-.login-divider::before,
-.login-divider::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 40%;
+.divider-line {
+    flex: 1;
     height: 1px;
-    background: #e0e0e0;
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.login-divider::before {
-    left: 0;
-}
-
-.login-divider::after {
-    right: 0;
-}
-
-.login-divider span {
-    background: white;
+.divider-text {
     padding: 0 16px;
-    color: #8c8c8c;
-    font-size: 14px;
-    position: relative;
-    z-index: 1;
-}
-
-.google-button {
-    height: 50px;
-    border-radius: 12px;
-    font-weight: 600;
-    border: 2px solid #f0f0f0;
-    transition: all 0.3s;
-}
-
-.google-button:hover {
-    border-color: #667eea;
-    color: #667eea;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.login-footer {
-    text-align: center;
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid #f0f0f0;
-}
-
-.footer-text {
+    color: #595959;
     font-size: 12px;
 }
 
-/* Responsive */
-@media (max-width: 576px) {
-    .login-card {
-        padding: 30px 20px;
-    }
+.google-btn-custom {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #e6edf3 !important;
+    border-radius: 12px !important;
+}
 
-    .logo-icon {
-        font-size: 50px;
-    }
+.google-btn-custom:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: #fff !important;
+}
 
-    .login-title {
-        font-size: 24px;
-    }
+.login-footer-text {
+    text-align: center;
+    margin-top: 32px;
 }
