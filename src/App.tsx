@@ -1,88 +1,383 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ConfigProvider, theme } from "antd";
-import AdminLayout from "./admin/layouts/AdminLayout";
-import Login from "./admin/pages/login/login";
-import Dashboard from "./admin/pages/dasboard/Dashboard";
-import UserList from "./admin/pages/Users/UserList";
-import SubscriptionList from "./admin/pages/Subscriptions/SubscriptionList";
-import PaymentList from "./admin/pages/Payments/PaymentList";
-import GenreList from "./admin/pages/Genres/GenreList";
-import LanguageList from "./admin/pages/Languages/LanguageList";
-import CastCrewList from "./admin/pages/CastCrew/CastCrewList";
-import Analytics from "./admin/pages/Analytics/Analytics";
-import Settings from "./admin/pages/Settings/Settings";
-import MoviesList from "./admin/pages/content/MoviesList";
-import SeriesList from "./admin/pages/content/SeriesList";
-import ShortFilmsList from "./admin/pages/content/ShortFilmsList";
-import VideosList from "./admin/pages/content/VideosList";
-import EventsList from "./admin/pages/content/EventsList";
-import MovieForm from "./admin/pages/content/MovieForm";
+// ═══════════════════════════════════════════════════════════════
+// 🚀 MAIN APP WITH ADMIN ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ConfigProvider } from 'antd';
+import { AuthProvider } from './context/AuthContext';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🎨 ADMIN LAYOUT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import AdminLayout from './layouts/AdminLayout';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🔐 AUTH & SETUP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import LoginPage from './admin/auth/LoginPage';
+// import SetupSuperAdmin from './admin/SetupSuperAdmin';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🛡️ PROTECTED ROUTE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import { ProtectedRoute } from './components/ProtectedRoute';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📊 DASHBOARD
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import AdminDashboard from './admin/Dashboard';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🎬 CONTENT MANAGEMENT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import MoviesManagement from './admin/content/MoviesManagement';
+import SeriesManagement from './admin/content/SeriesManagement';
+import ShortFilmsManagement from './admin/content/ShortFilmsManagement';
+import ContentApproval from './admin/content/ContentApproval';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 👥 USER MANAGEMENT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import UsersManagement from './admin/users/UsersManagement';
+import AdminUsersManagement from './admin/users/AdminUsersManagement';
+import RolesPermissions from './admin/users/RolesPermissions';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🛡️ MODERATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import CommentsModeration from './admin/moderation/CommentsModeration';
+import ReportsManagement from './admin/moderation/ReportsManagement';
+import BannedUsers from './admin/moderation/BannedUsers';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 💰 FINANCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import SubscriptionsManagement from './admin/finance/SubscriptionsManagement';
+import TransactionsManagement from './admin/finance/TransactionsManagement';
+import PayoutsManagement from './admin/finance/PayoutsManagement';
+import RevenueReports from './admin/finance/RevenueReports';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📊 ANALYTICS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import PlatformAnalytics from './admin/analytics/PlatformAnalytics';
+import ContentAnalytics from './admin/analytics/ContentAnalytics';
+import UserAnalytics from './admin/analytics/UserAnalytics';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📢 MARKETING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import BannersManagement from './admin/marketing/BannersManagement';
+import NotificationsManagement from './admin/marketing/NotificationsManagement';
+import PromotionsManagement from './admin/marketing/PromotionsManagement';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⚙️ TECHNICAL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import CDNSettings from './admin/technical/CDNSettings';
+import EncodingSettings from './admin/technical/EncodingSettings';
+import APISettings from './admin/technical/APISettings';
+import SystemLogs from './admin/technical/SystemLogs';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🎭 EVENTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import EventsManagement from './admin/events/EventsManagement';
+import BookingsManagement from './admin/events/BookingsManagement';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⚙️ SETTINGS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import PlatformSettings from './admin/settings/PlatformSettings';
+import ProfileSettings from './admin/settings/ProfileSettings';
 
 const App: React.FC = () => {
   return (
     <ConfigProvider
       theme={{
-        algorithm: theme.defaultAlgorithm,
         token: {
-          fontFamily: "'Poppins', sans-serif",
-          borderRadius: 12,
-          // The "Onyx Black" Palette
-          colorBgBase: "#02040a", // True Cinema Black
-          colorBgContainer: "#0d1117", // Deep Slate for cards
-          colorPrimary: "#faad14", // CG Cinema Gold
-          colorInfo: "#faad14",
-          colorSuccess: "#00ffa3", // Neon Success
-          colorBgLayout: "#02040a",
-          // Text
-          colorTextBase: "#e6edf3",
-          colorTextSecondary: "#8b949e",
-        },
-        components: {
-          Card: {
-            colorBgContainer: "rgba(13, 17, 23, 0.8)", // Glass effect
-            borderRadiusLG: 20,
-          },
-          Table: {
-            headerBg: "transparent",
-            headerColor: "#8b949e",
-            headerSplitColor: "transparent",
-            rowHoverBg: "rgba(250, 173, 20, 0.05)",
-          },
-          Menu: {
-            itemBg: "transparent",
-            itemSelectedBg: "rgba(250, 173, 20, 0.1)",
-            itemSelectedColor: "#faad14",
-          },
+          colorPrimary: '#f59e0b',
+          borderRadius: 8,
+          fontFamily: 'Poppins, sans-serif',
         },
       }}
     >
-      <BrowserRouter>
-        <Routes>
-          <Route path="/admin/login" element={<Login />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="movies" element={<MoviesList />} />
-            <Route path="movies/new" element={<MovieForm />} />
-            <Route path="movies/edit/:id" element={<MovieForm />} />
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* 🔐 PUBLIC ROUTES */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <Route path="/admin/login" element={<LoginPage />} />
+            {/* <Route path="/setup-super-admin" element={<SetupSuperAdmin />} /> */}
 
-            <Route path="series" element={<SeriesList />} />
-            <Route path="short-films" element={<ShortFilmsList />} />
-            <Route path="videos" element={<VideosList />} />
-            <Route path="events" element={<EventsList />} />
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* 🛡️ PROTECTED ADMIN ROUTES */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <Route
+              path="/admin/*"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              {/* Dashboard */}
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
 
-            <Route path="users" element={<UserList />} />
-            <Route path="subscriptions" element={<SubscriptionList />} />
-            <Route path="payments" element={<PaymentList />} />
-            <Route path="genres" element={<GenreList />} />
-            <Route path="languages" element={<LanguageList />} />
-            <Route path="cast-crew" element={<CastCrewList />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/admin" replace />} />
-        </Routes>
-      </BrowserRouter>
+              {/* Content Management */}
+              <Route
+                path="content/movies"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['content_manager', 'super_admin']}>
+                    <MoviesManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="content/series"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['content_manager', 'super_admin']}>
+                    <SeriesManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="content/short-films"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['content_manager', 'super_admin']}>
+                    <ShortFilmsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="content/approval"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['content_manager', 'super_admin']}>
+                    <ContentApproval />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* User Management */}
+              <Route
+                path="users/all"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['super_admin']}>
+                    <UsersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="users/admins"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['super_admin']}>
+                    <AdminUsersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="users/roles"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['super_admin']}>
+                    <RolesPermissions />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Moderation */}
+              <Route
+                path="moderation/comments"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['moderator', 'super_admin']}>
+                    <CommentsModeration />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="moderation/reports"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['moderator', 'super_admin']}>
+                    <ReportsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="moderation/banned-users"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['moderator', 'super_admin']}>
+                    <BannedUsers />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Finance */}
+              <Route
+                path="finance/subscriptions"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['finance', 'super_admin']}>
+                    <SubscriptionsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="finance/transactions"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['finance', 'super_admin']}>
+                    <TransactionsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="finance/payouts"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['finance', 'super_admin']}>
+                    <PayoutsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="finance/reports"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['finance', 'super_admin']}>
+                    <RevenueReports />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Analytics */}
+              <Route
+                path="analytics/platform"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['analyst', 'super_admin']}>
+                    <PlatformAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="analytics/content"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['analyst', 'super_admin']}>
+                    <ContentAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="analytics/users"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['analyst', 'super_admin']}>
+                    <UserAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Marketing */}
+              <Route
+                path="marketing/banners"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['analyst', 'super_admin']}>
+                    <BannersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="marketing/notifications"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['analyst', 'super_admin']}>
+                    <NotificationsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="marketing/promotions"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['analyst', 'super_admin']}>
+                    <PromotionsManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Technical */}
+              <Route
+                path="technical/cdn"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['tech_admin', 'super_admin']}>
+                    <CDNSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="technical/encoding"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['tech_admin', 'super_admin']}>
+                    <EncodingSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="technical/api"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['tech_admin', 'super_admin']}>
+                    <APISettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="technical/logs"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['tech_admin', 'super_admin']}>
+                    <SystemLogs />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Events */}
+              <Route
+                path="events/all"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['content_manager', 'super_admin']}>
+                    <EventsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="events/bookings"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['finance', 'super_admin']}>
+                    <BookingsManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Settings */}
+              <Route
+                path="settings/platform"
+                element={
+                  <ProtectedRoute requireAdmin allowedRoles={['super_admin']}>
+                    <PlatformSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="settings/profile"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <ProfileSettings />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* 🔄 FALLBACK */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </ConfigProvider>
   );
 };
