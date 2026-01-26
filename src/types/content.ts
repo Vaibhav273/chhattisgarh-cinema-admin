@@ -2,6 +2,7 @@
 // 🎬 CONTENT TYPES (Movies, Series, Short Films, Videos)
 // ═══════════════════════════════════════════════════════════════
 
+import type { Timestamp } from 'firebase/firestore';
 import type {
     RatingType,
     CastMember,
@@ -14,6 +15,7 @@ import type {
     UserRating,
     FestivalScreening,
     ContentCategory,
+    SocialMedia,
 } from './common';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -45,8 +47,8 @@ export interface BaseContent {
     views?: number;
     likes?: number;
     dislikes?: number;
-    createdAt?: string | Date;
-    updatedAt?: string | Date;
+    createdAt: Timestamp | Date;
+    updatedAt: Timestamp | Date;
 
     // Channel Info
     channelId?: string;
@@ -66,6 +68,8 @@ export interface BaseContent {
     metaDescription?: string;
     tags?: string[];
     watchProgress?: number;
+
+
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -156,6 +160,8 @@ export interface WebSeries extends BaseContent {
     shareCount?: number;
     bookmarkCount?: number;
     commentsCount?: number;
+    socialMedia?: SocialMedia; // ✅ Add this line
+    officialWebsite?: string;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -221,7 +227,7 @@ export interface Episode {
 export interface ShortFilm extends BaseContent {
     category: 'short-film' | 'shortfilms';
     duration?: string;
-    releaseDate?: string | Date;
+    releaseDate?: string;
     director?: string;
     directorHindi?: string;
     producer?: string;
@@ -250,6 +256,7 @@ export interface ShortFilm extends BaseContent {
     filmmakerNotes?: string;
     filmmakerNotesHindi?: string;
     commentsCount?: number;
+    socialMedia?: SocialMedia;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

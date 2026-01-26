@@ -17,24 +17,27 @@ export interface CastMember {
     id?: string;
     name: string;
     nameHindi?: string;
-    role: string;
-    roleHindi?: string;
+    role: 'Actor' | 'Actress' | 'Supporting Actor' | 'Supporting Actress' | 'Child Actor' | 'Guest';
     characterName?: string;
     characterNameHindi?: string;
     profileImage?: string;
     bio?: string;
     bioHindi?: string;
     socialMedia?: SocialMedia;
+    order?: number;
 }
 
 export interface CrewMember {
     id?: string;
     name: string;
     nameHindi?: string;
-    role: string;
-    roleHindi?: string;
-    department?: string;
+    role: string; // Director, Producer, Writer, DOP, etc
+    department?: 'Direction' | 'Production' | 'Writing' | 'Cinematography' | 'Music' | 'Editing' | 'Art' | 'Costume' | 'Makeup' | 'Sound' | 'VFX' | 'Other';
     profileImage?: string;
+    bio?: string;
+    bioHindi?: string;
+    socialMedia?: SocialMedia;
+    order?: number;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -130,6 +133,8 @@ export interface SocialMedia {
     twitter?: string;
     youtube?: string;
     website?: string;
+    imdb?: string;
+    wikipedia?: string;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
