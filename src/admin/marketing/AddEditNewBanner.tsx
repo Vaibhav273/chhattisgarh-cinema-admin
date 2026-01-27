@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     ArrowLeft,
@@ -10,22 +10,20 @@ import {
     Save,
     AlertCircle,
     CheckCircle,
-    X,
     MapPin,
     Hash,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
     collection,
     addDoc,
+    doc,
+    getDoc,
+    updateDoc,
     Timestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../config/firebase";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🎨 INTERFACES & TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
 
 interface ToastProps {
     message: string;
@@ -92,8 +90,14 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
 // 📋 MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const AddNewBanner: React.FC = () => {
+const AddEditNewBanner: React.FC = () => {
     const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const isEditMode = !!id;
+
+    // Loading state
+    const [loading, setLoading] = useState(isEditMode);
+    const [bannerNotFound, setBannerNotFound] = useState(false);
 
     // Form states
     const [formData, setFormData] = useState({
@@ -107,6 +111,7 @@ const AddNewBanner: React.FC = () => {
         isActive: true,
     });
 
+    const [currentImageUrl, setCurrentImageUrl] = useState<string>("");
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string>("");
     const [uploading, setUploading] = useState(false);
@@ -118,6 +123,48 @@ const AddNewBanner: React.FC = () => {
         message: "",
         type: "success" as "success" | "error" | "info" | "warning",
     });
+
+    // Fetch banner data if in edit mode
+    useEffect(() => {
+        if (isEditMode && id) {
+            fetchBannerData();
+        }
+    }, [isEditMode, id]);
+
+    const fetchBannerData = async () => {
+        try {
+            setLoading(true);
+            const bannerDoc = await getDoc(doc(db, "banners", id!));
+
+            if (!bannerDoc.exists()) {
+                setBannerNotFound(true);
+                showToast("Banner not found", "error");
+                setLoading(false);
+                return;
+            }
+
+            const data = bannerDoc.data();
+            setFormData({
+                title: data.title || "",
+                position: data.position || "Home Hero",
+                priority: data.priority || 1,
+                link: data.link || "",
+                startDate: data.startDate || "",
+                endDate: data.endDate || "",
+                description: data.description || "",
+                isActive: data.isActive ?? true,
+            });
+
+            setCurrentImageUrl(data.imageUrl || "");
+            setImagePreview(data.imageUrl || "");
+            setLoading(false);
+        } catch (error) {
+            console.error("Error fetching banner:", error);
+            showToast("Failed to load banner data", "error");
+            setBannerNotFound(true);
+            setLoading(false);
+        }
+    };
 
     const showToast = (
         message: string,
@@ -163,7 +210,11 @@ const AddNewBanner: React.FC = () => {
     // Remove image
     const handleRemoveImage = () => {
         setImageFile(null);
-        setImagePreview("");
+        if (isEditMode) {
+            setImagePreview(currentImageUrl); // Reset to original in edit mode
+        } else {
+            setImagePreview(""); // Clear in add mode
+        }
     };
 
     // Validate form
@@ -174,7 +225,7 @@ const AddNewBanner: React.FC = () => {
             newErrors.title = "Banner title is required";
         }
 
-        if (!imageFile) {
+        if (!isEditMode && !imageFile) {
             newErrors.image = "Please select a banner image";
         }
 
@@ -226,8 +277,8 @@ const AddNewBanner: React.FC = () => {
         try {
             setUploading(true);
 
-            // Upload image
-            let imageUrl = "";
+            // Upload image (new image or keep existing)
+            let imageUrl = currentImageUrl;
             if (imageFile) {
                 imageUrl = await uploadImage(imageFile);
             }
@@ -243,29 +294,73 @@ const AddNewBanner: React.FC = () => {
                 startDate: formData.startDate || null,
                 endDate: formData.endDate || null,
                 isActive: formData.isActive,
-                clicks: 0,
-                views: 0,
-                createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),
             };
 
-            // Save to Firestore
-            await addDoc(collection(db, "banners"), bannerData);
-
-            showToast("Banner created successfully!", "success");
+            if (isEditMode) {
+                // Update existing banner
+                await updateDoc(doc(db, "banners", id!), bannerData);
+                showToast("Banner updated successfully!", "success");
+            } else {
+                // Create new banner
+                await addDoc(collection(db, "banners"), {
+                    ...bannerData,
+                    clicks: 0,
+                    views: 0,
+                    createdAt: Timestamp.now(),
+                });
+                showToast("Banner created successfully!", "success");
+            }
 
             // Navigate back after 1.5 seconds
             setTimeout(() => {
-                navigate("/admin/banners");
+                navigate("/admin/marketing/banners");
             }, 1500);
 
             setUploading(false);
         } catch (error) {
-            console.error("Error creating banner:", error);
-            showToast("Failed to create banner. Please try again.", "error");
+            console.error(`Error ${isEditMode ? "updating" : "creating"} banner:`, error);
+            showToast(`Failed to ${isEditMode ? "update" : "create"} banner. Please try again.`, "error");
             setUploading(false);
         }
     };
+
+    // Loading state
+    if (loading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full mb-4"
+                />
+                <p className="text-slate-600 dark:text-slate-400 font-semibold">
+                    Loading banner data...
+                </p>
+            </div>
+        );
+    }
+
+    // Not found state
+    if (bannerNotFound) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center">
+                <AlertCircle size={64} className="text-red-500 mb-4" />
+                <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-2">
+                    Banner Not Found
+                </h2>
+                <p className="text-slate-600 dark:text-slate-400 mb-6">
+                    The banner you're looking for doesn't exist.
+                </p>
+                <button
+                    onClick={() => navigate("/admin/marketing/banners")}
+                    className="px-6 py-3 bg-pink-500 text-white rounded-xl font-bold hover:bg-pink-600 transition-all"
+                >
+                    Back to Banners
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen w-full pb-8">
@@ -303,9 +398,13 @@ const AddNewBanner: React.FC = () => {
                                 <ImageIcon size={32} />
                             </div>
                             <div>
-                                <h1 className="text-4xl font-black mb-2">Add New Banner</h1>
+                                <h1 className="text-4xl font-black mb-2">
+                                    {isEditMode ? "Edit Banner" : "Add New Banner"}
+                                </h1>
                                 <p className="text-white/90 text-lg">
-                                    Create a new promotional banner for your platform
+                                    {isEditMode
+                                        ? "Update banner details and settings"
+                                        : "Create a new promotional banner for your platform"}
                                 </p>
                             </div>
                         </div>
@@ -334,7 +433,9 @@ const AddNewBanner: React.FC = () => {
                                                 Banner Image
                                             </h3>
                                             <p className="text-sm text-slate-600 dark:text-slate-400">
-                                                Upload a high-quality banner image (Max 5MB)
+                                                {isEditMode
+                                                    ? "Upload a new image or keep the current one (Max 5MB)"
+                                                    : "Upload a high-quality banner image (Max 5MB)"}
                                             </p>
                                         </div>
                                     </div>
@@ -348,21 +449,25 @@ const AddNewBanner: React.FC = () => {
                                                 alt="Preview"
                                                 className="w-full h-64 object-cover rounded-2xl"
                                             />
-                                            <button
-                                                type="button"
-                                                onClick={handleRemoveImage}
-                                                className="absolute top-4 right-4 p-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all shadow-lg opacity-0 group-hover:opacity-100"
-                                            >
-                                                <X size={20} />
-                                            </button>
-                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={handleRemoveImage}
-                                                    className="px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all"
-                                                >
-                                                    Remove Image
-                                                </button>
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center gap-3">
+                                                <label className="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all cursor-pointer">
+                                                    {isEditMode ? "Change Image" : "Replace Image"}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handleImageSelect}
+                                                        className="hidden"
+                                                    />
+                                                </label>
+                                                {imageFile && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRemoveImage}
+                                                        className="px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all"
+                                                    >
+                                                        Reset
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ) : (
@@ -381,6 +486,12 @@ const AddNewBanner: React.FC = () => {
                                                 className="hidden"
                                             />
                                         </label>
+                                    )}
+                                    {imageFile && (
+                                        <p className="mt-2 text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
+                                            <CheckCircle size={16} />
+                                            New image selected. Will be uploaded on save.
+                                        </p>
                                     )}
                                     {errors.image && (
                                         <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
@@ -701,12 +812,12 @@ const AddNewBanner: React.FC = () => {
                                     {uploading ? (
                                         <>
                                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                            Creating Banner...
+                                            {isEditMode ? "Updating Banner..." : "Creating Banner..."}
                                         </>
                                     ) : (
                                         <>
                                             <Save size={20} />
-                                            Create Banner
+                                            {isEditMode ? "Update Banner" : "Create Banner"}
                                         </>
                                     )}
                                 </button>
@@ -728,4 +839,4 @@ const AddNewBanner: React.FC = () => {
     );
 };
 
-export default AddNewBanner;
+export default AddEditNewBanner;

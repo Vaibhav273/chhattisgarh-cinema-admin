@@ -82,7 +82,9 @@ import BookingsManagement from "../admin/events/BookingsManagement";
 import PlatformSettings from "../admin/settings/PlatformSettings";
 import ProfileSettings from "../admin/settings/ProfileSettings";
 import AddEditMovie from "../admin/content/AddEditMovie";
-import AddNewBanner from "../admin/marketing/AddNewBanner";
+import AddEditNewBanner from "../admin/marketing/AddEditNewBanner";
+import AddNewEditNotification from "../admin/marketing/AddNewEditNotification";
+import AddNewEditPromotion from "../admin/marketing/AddNewEditPromotion";
 
 const AdminRoutes: React.FC = () => {
   return (
@@ -397,13 +399,13 @@ const AdminRoutes: React.FC = () => {
         }
       />
       <Route
-        path="marketing/banners/new"
+        path="/marketing/banners/new"
         element={
           <ProtectedRoute
             requireAdmin
             allowedRoles={["analyst", "super_admin"]}
           >
-            <AddNewBanner />
+            <AddEditNewBanner />
           </ProtectedRoute>
         }
       />
@@ -419,6 +421,17 @@ const AdminRoutes: React.FC = () => {
         }
       />
       <Route
+        path="/marketing/notifications/new"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["analyst", "super_admin"]}
+          >
+            <AddNewEditNotification />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/marketing/promotions"
         element={
           <ProtectedRoute
@@ -426,6 +439,17 @@ const AdminRoutes: React.FC = () => {
             allowedRoles={["analyst", "super_admin"]}
           >
             <PromotionsManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/marketing/promotions/new"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["analyst", "super_admin"]}
+          >
+            <AddNewEditPromotion />
           </ProtectedRoute>
         }
       />

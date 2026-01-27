@@ -96,7 +96,9 @@ import AddEditUser from "./admin/users/AddEditUser";
 import AddEditMovie from "./admin/content/AddEditMovie";
 import AddEditWebSeries from "./admin/content/AddEditWebSeries";
 import AddEditShortFilm from "./admin/content/AddEditShortFilm";
-import AddNewBanner from "./admin/marketing/AddNewBanner";
+import AddEditNewBanner from "./admin/marketing/AddEditNewBanner";
+import AddNewEditNotification from "./admin/marketing/AddNewEditNotification";
+import AddNewEditPromotion from "./admin/marketing/AddNewEditPromotion";
 
 const App: React.FC = () => {
   return (
@@ -417,7 +419,7 @@ const App: React.FC = () => {
                     requireAdmin
                     allowedRoles={["analyst", "super_admin"]}
                   >
-                    <AddNewBanner />
+                    <AddEditNewBanner />
                   </ProtectedRoute>
                 }
               />
@@ -433,6 +435,17 @@ const App: React.FC = () => {
                 }
               />
               <Route
+                path="marketing/notifications/new"
+                element={
+                  <ProtectedRoute
+                    requireAdmin
+                    allowedRoles={["analyst", "super_admin"]}
+                  >
+                    <AddNewEditNotification />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="marketing/promotions"
                 element={
                   <ProtectedRoute
@@ -440,6 +453,17 @@ const App: React.FC = () => {
                     allowedRoles={["analyst", "super_admin"]}
                   >
                     <PromotionsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="marketing/promotions/new"
+                element={
+                  <ProtectedRoute
+                    requireAdmin
+                    allowedRoles={["analyst", "super_admin"]}
+                  >
+                    <AddNewEditPromotion />
                   </ProtectedRoute>
                 }
               />
