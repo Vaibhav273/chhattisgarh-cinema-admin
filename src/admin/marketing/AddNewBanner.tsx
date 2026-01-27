@@ -292,7 +292,7 @@ const AddNewBanner: React.FC = () => {
 
                     <div className="relative z-10">
                         <button
-                            onClick={() => navigate("/admin/banners")}
+                            onClick={() => navigate("/admin/marketing/banners")}
                             className="mb-4 px-4 py-2 bg-white/20 backdrop-blur-xl rounded-xl font-bold hover:bg-white/30 transition-all flex items-center gap-2"
                         >
                             <ArrowLeft size={20} />
@@ -418,8 +418,8 @@ const AddNewBanner: React.FC = () => {
                                             }
                                             placeholder="e.g., Summer Sale 2026"
                                             className={`w-full px-4 py-3 border ${errors.title
-                                                    ? "border-red-500"
-                                                    : "border-slate-300 dark:border-slate-700"
+                                                ? "border-red-500"
+                                                : "border-slate-300 dark:border-slate-700"
                                                 } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-pink-500`}
                                         />
                                         {errors.title && (
@@ -513,8 +513,8 @@ const AddNewBanner: React.FC = () => {
                                             }
                                             placeholder="https://example.com/offer"
                                             className={`w-full px-4 py-3 border ${errors.link
-                                                    ? "border-red-500"
-                                                    : "border-slate-300 dark:border-slate-700"
+                                                ? "border-red-500"
+                                                : "border-slate-300 dark:border-slate-700"
                                                 } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-pink-500`}
                                         />
                                         {errors.link && (
@@ -624,8 +624,8 @@ const AddNewBanner: React.FC = () => {
                                                 setFormData({ ...formData, isActive: !formData.isActive })
                                             }
                                             className={`relative w-14 h-8 rounded-full transition-all ${formData.isActive
-                                                    ? "bg-green-500"
-                                                    : "bg-slate-300 dark:bg-slate-600"
+                                                ? "bg-green-500"
+                                                : "bg-slate-300 dark:bg-slate-600"
                                                 }`}
                                         >
                                             <div
@@ -713,7 +713,7 @@ const AddNewBanner: React.FC = () => {
 
                                 <button
                                     type="button"
-                                    onClick={() => navigate("/admin/banners")}
+                                    onClick={() => navigate("/admin/marketing/banners")}
                                     disabled={uploading}
                                     className="w-full px-6 py-4 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50"
                                 >
