@@ -82,6 +82,7 @@ import BookingsManagement from "../admin/events/BookingsManagement";
 import PlatformSettings from "../admin/settings/PlatformSettings";
 import ProfileSettings from "../admin/settings/ProfileSettings";
 import AddEditMovie from "../admin/content/AddEditMovie";
+import AddNewBanner from "../admin/marketing/AddNewBanner";
 
 const AdminRoutes: React.FC = () => {
   return (
@@ -392,6 +393,17 @@ const AdminRoutes: React.FC = () => {
             allowedRoles={["analyst", "super_admin"]}
           >
             <BannersManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="marketing/banners/new"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["analyst", "super_admin"]}
+          >
+            <AddNewBanner />
           </ProtectedRoute>
         }
       />

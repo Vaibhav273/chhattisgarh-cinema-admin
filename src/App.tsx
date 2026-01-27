@@ -96,6 +96,7 @@ import AddEditUser from "./admin/users/AddEditUser";
 import AddEditMovie from "./admin/content/AddEditMovie";
 import AddEditWebSeries from "./admin/content/AddEditWebSeries";
 import AddEditShortFilm from "./admin/content/AddEditShortFilm";
+import AddNewBanner from "./admin/marketing/AddNewBanner";
 
 const App: React.FC = () => {
   return (
@@ -202,7 +203,7 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-               <Route
+              <Route
                 path="content/shortfilms/add"
                 element={
                   <ProtectedRoute
@@ -406,6 +407,17 @@ const App: React.FC = () => {
                     allowedRoles={["analyst", "super_admin"]}
                   >
                     <BannersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="marketing/banners/new"
+                element={
+                  <ProtectedRoute
+                    requireAdmin
+                    allowedRoles={["analyst", "super_admin"]}
+                  >
+                    <AddNewBanner />
                   </ProtectedRoute>
                 }
               />

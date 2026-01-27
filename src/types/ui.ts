@@ -85,3 +85,29 @@ export interface PricingPlan {
     maxDownloadsPerDevice: number;
     order: number;
 }
+
+
+export interface Banner {
+    id: string;
+    title: string;
+    imageUrl: string;
+    position: string;
+    priority: number;
+    link?: string;
+    clicks: number;
+    views: number;
+    isActive: boolean;
+    startDate?: string;
+    endDate?: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface BannerStats {
+    totalBanners: number;
+    activeBanners: number;
+    inactiveBanners: number;
+    totalClicks: number;
+    totalViews: number;
+    averageCTR: number;
+}

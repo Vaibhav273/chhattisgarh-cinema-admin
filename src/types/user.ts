@@ -402,3 +402,220 @@ export interface WatchHistory {
     episodeNumber?: number;
     episodeTitle?: string;
 }
+
+
+export interface Transaction {
+    id: string;
+    transactionId: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    type: "subscription" | "event_booking" | "refund" | "payout";
+    amount: number;
+    currency: string;
+    status: "success" | "pending" | "failed" | "refunded";
+    paymentMethod: {
+        type: "card" | "upi" | "netbanking" | "wallet";
+        last4?: string;
+        upiId?: string;
+        bank?: string;
+    };
+    gatewayTransactionId?: string;
+    gatewayName?: string;
+    description: string;
+    metadata?: {
+        subscriptionPlan?: string;
+        eventId?: string;
+        eventName?: string;
+        deviceType?: string;
+        [key: string]: any;
+    };
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Payout {
+    id: string;
+    payoutId: string;
+    creatorId: string;
+    creatorName: string;
+    creatorEmail: string;
+    amount: number;
+    currency: string;
+    period: string; // e.g., "Jan 2024"
+    periodStartDate: string;
+    periodEndDate: string;
+    status: "pending" | "approved" | "processing" | "paid" | "rejected";
+    paymentMethod?: {
+        type: "bank_transfer" | "upi" | "paypal";
+        accountNumber?: string;
+        ifscCode?: string;
+        upiId?: string;
+        paypalEmail?: string;
+    };
+    earnings: {
+        subscriptionRevenue: number;
+        eventRevenue: number;
+        totalEarnings: number;
+        platformFee: number;
+        netPayout: number;
+    };
+    transactionId?: string;
+    processedBy?: string;
+    processedAt?: string;
+    rejectionReason?: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface RevenueStats {
+    totalRevenue: number;
+    subscriptionRevenue: number;
+    eventRevenue: number;
+    thisMonth: number;
+    lastMonth: number;
+    growth: number;
+    activeSubscribers: number;
+    totalBookings: number;
+    averageOrderValue: number;
+}
+
+export interface MonthlyRevenue {
+    month: string;
+    year: number;
+    subscriptions: number;
+    events: number;
+    total: number;
+    growth: number;
+}
+
+export interface TaxInfo {
+    gstCollected: number;
+    tdsDeducted: number;
+    platformFee: number;
+    netPayable: number;
+}
+
+export interface AnalyticsStats {
+    totalUsers: number;
+    totalViews: number;
+    watchHours: number;
+    engagementRate: number;
+    dailyActiveUsers: number;
+    weeklyActiveUsers: number;
+    monthlyActiveUsers: number;
+    premiumUsers: number;
+    freeUsers: number;
+    newUsersThisMonth: number;
+    userGrowth: number;
+    viewsGrowth: number;
+    watchTimeGrowth: number;
+}
+export interface TopContent {
+    id: string;
+    title: string;
+    type: string;
+    views: number;
+    likes: number;
+    watchTime: number;
+}
+
+export interface DeviceStats {
+    mobile: number;
+    web: number;
+    tv: number;
+}
+
+export interface ContentItem {
+    id: string;
+    title: string;
+    type: "Movie" | "Series" | "Short Film";
+    views: number;
+    watchTime: number; // in hours
+    completionRate: number;
+    rating: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    genre: string;
+    language: string;
+    publishedDate: string;
+}
+
+export interface ContentStats {
+    totalContent?: number;
+    totalViews?: number;
+    totalWatchTime?: number;
+    averageCompletionRate?: number;
+    averageRating?: number;
+    totalLikes?: number;
+    totalComments?: number;
+    totalShares?: number;
+    moviesCount?: number;
+    seriesCount?: number;
+    shortFilmsCount?: number;
+}
+
+export interface GenreStats {
+    genre: string;
+    count: number;
+    views: number;
+    percentage: number;
+}
+
+export interface LanguageStats {
+    language: string;
+    count: number;
+    views: number;
+    percentage: number;
+}
+
+export interface UserStatsAnalytics {
+    totalUsers: number;
+    newUsersThisMonth: number;
+    churnedUsers: number;
+    activeSessions: number;
+    averageSessionTime: number;
+    premiumUsers: number;
+    freeUsers: number;
+    monthlyActiveUsers: number;
+    weeklyActiveUsers: number;
+    dailyActiveUsers: number;
+    newUserGrowth: number;
+    churnRate: number;
+    sessionTimeGrowth: number;
+}
+
+export interface DeviceUsage {
+    mobile: number;
+    desktop: number;
+    tv: number;
+    mobilePercentage: number;
+    desktopPercentage: number;
+    tvPercentage: number;
+}
+
+export interface ActivityTime {
+    timeSlot: string;
+    userCount: number;
+    percentage: number;
+}
+
+export interface RetentionData {
+    day: string;
+    percentage: number;
+    userCount: number;
+}
+
+export interface DemographicData {
+    ageGroup: string;
+    count: number;
+    percentage: number;
+}
+
+export interface LocationData {
+    location: string;
+    count: number;
+    percentage: number;
+}

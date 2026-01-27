@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// 🎨 ADMIN LAYOUT WITH LIGHT/DARK MODE TOGGLE
+// 🎨 ADMIN LAYOUT WITH LIGHT/DARK MODE TOGGLE - FIXED
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -30,15 +30,58 @@ import {
     Sun,
     Moon,
 } from "lucide-react";
-import { auth } from "../config/firebase";
+import { auth, db } from "../config/firebase";
 import { signOut } from "firebase/auth";
+import {
+    collection,
+    query,
+    where,
+    getCountFromServer
+} from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { Permission } from "../types/roles";
 
+// ═══════════════════════════════════════════════════════════════
+// 🎯 DYNAMIC COUNTS INTERFACE
+// ═══════════════════════════════════════════════════════════════
+interface DynamicCounts {
+    movies: number;
+    series: number;
+    shortFilms: number;
+    pendingApprovals: number;
+    events: number;
+    eventBookings: number;
+    totalUsers: number;
+    adminUsers: number;
+    pendingComments: number;
+    pendingReports: number;
+    bannedUsers: number;
+    activeSubscriptions: number;
+    pendingTransactions: number;
+    pendingPayouts: number;
+}
+
 const AdminLayout: React.FC = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
+    const [counts, setCounts] = useState<DynamicCounts>({
+        movies: 0,
+        series: 0,
+        shortFilms: 0,
+        pendingApprovals: 0,
+        events: 0,
+        eventBookings: 0,
+        totalUsers: 0,
+        adminUsers: 0,
+        pendingComments: 0,
+        pendingReports: 0,
+        bannedUsers: 0,
+        activeSubscriptions: 0,
+        pendingTransactions: 0,
+        pendingPayouts: 0,
+    });
+
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
@@ -51,6 +94,288 @@ const AdminLayout: React.FC = () => {
             setDarkMode(true);
         }
     }, []);
+
+    const lastFetchTime = useRef<number>(0);
+    const FETCH_INTERVAL = 5 * 60 * 1000;
+
+    useEffect(() => {
+        const fetchCounts = async () => {
+            const now = Date.now();
+
+            // ✅ Skip if last fetch was less than 5 minutes ago
+            if (lastFetchTime.current && (now - lastFetchTime.current) < FETCH_INTERVAL) {
+                console.log("⏭️ Skipping fetch - last update was recent");
+                return;
+            }
+            try {
+                console.log("🔄 Fetching counts at:", new Date().toLocaleTimeString());
+                lastFetchTime.current = now;
+
+                const newCounts: DynamicCounts = {
+                    movies: 0,
+                    series: 0,
+                    shortFilms: 0,
+                    pendingApprovals: 0,
+                    events: 0,
+                    eventBookings: 0,
+                    totalUsers: 0,
+                    adminUsers: 0,
+                    pendingComments: 0,
+                    pendingReports: 0,
+                    bannedUsers: 0,
+                    activeSubscriptions: 0,
+                    pendingTransactions: 0,
+                    pendingPayouts: 0,
+                };
+
+                const countPromises: Promise<void>[] = [];
+
+                // Content counts
+                if (canAny([Permission.EDIT_ANY_CONTENT, Permission.UPLOAD_CONTENT])) {
+                    countPromises.push(
+                        getCountFromServer(collection(db, "movies"))
+                            .then((snapshot) => {
+                                newCounts.movies = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting movies:", err);
+                                newCounts.movies = 0;
+                            })
+                    );
+                    countPromises.push(
+                        getCountFromServer(collection(db, "webseries"))
+                            .then((snapshot) => {
+                                newCounts.series = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting webseries:", err);
+                                newCounts.series = 0;
+                            })
+                    );
+                    countPromises.push(
+                        getCountFromServer(collection(db, "shortfilms"))
+                            .then((snapshot) => {
+                                newCounts.shortFilms = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting shortfilms:", err);
+                                newCounts.shortFilms = 0;
+                            })
+                    );
+                }
+
+                // Pending approvals
+                if (can(Permission.APPROVE_CONTENT)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "movies"), where("isPublished", "==", false))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingApprovals += snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending movies:", err);
+                            })
+                    );
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "webseries"), where("isPublished", "==", false))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingApprovals += snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending series:", err);
+                            })
+                    );
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "shortfilms"), where("isPublished", "==", false))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingApprovals += snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending shortfilms:", err);
+                            })
+                    );
+                }
+
+                // Events
+                if (can(Permission.UPLOAD_CONTENT)) {
+                    countPromises.push(
+                        getCountFromServer(collection(db, "events"))
+                            .then((snapshot) => {
+                                newCounts.events = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting events:", err);
+                                newCounts.events = 0;
+                            })
+                    );
+                }
+
+                // Event Bookings
+                if (can(Permission.VIEW_REVENUE)) {
+                    countPromises.push(
+                        getCountFromServer(collection(db, "eventBookings"))
+                            .then((snapshot) => {
+                                newCounts.eventBookings = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting event bookings:", err);
+                                newCounts.eventBookings = 0;
+                            })
+                    );
+                }
+
+                // Users
+                if (can(Permission.MANAGE_ADMINS)) {
+                    countPromises.push(
+                        getCountFromServer(collection(db, "users"))
+                            .then((snapshot) => {
+                                newCounts.totalUsers = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting users:", err);
+                                newCounts.totalUsers = 0;
+                            })
+                    );
+                    countPromises.push(
+                        getCountFromServer(
+                            query(
+                                collection(db, "users"),
+                                where("role", "in", ["admin", "moderator", "content_manager"])
+                            )
+                        )
+                            .then((snapshot) => {
+                                newCounts.adminUsers = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting admin users:", err);
+                                newCounts.adminUsers = 0;
+                            })
+                    );
+                }
+
+                // Comments
+                if (can(Permission.DELETE_COMMENTS)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "comments"), where("status", "==", "pending"))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingComments = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending comments:", err);
+                                newCounts.pendingComments = 0;
+                            })
+                    );
+                }
+
+                // Reports
+                if (can(Permission.REVIEW_REPORTS)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "reports"), where("status", "==", "pending"))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingReports = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending reports:", err);
+                                newCounts.pendingReports = 0;
+                            })
+                    );
+                }
+
+                // Banned Users
+                if (can(Permission.BAN_USERS)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "users"), where("isBanned", "==", true))
+                        )
+                            .then((snapshot) => {
+                                newCounts.bannedUsers = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting banned users:", err);
+                                newCounts.bannedUsers = 0;
+                            })
+                    );
+                }
+
+                // Subscriptions
+                if (can(Permission.MANAGE_SUBSCRIPTIONS)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(
+                                collection(db, "users"),
+                                where("subscription.status", "==", "active")
+                            )
+                        )
+                            .then((snapshot) => {
+                                newCounts.activeSubscriptions = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting active subscriptions:", err);
+                                newCounts.activeSubscriptions = 0;
+                            })
+                    );
+                }
+
+                // Transactions
+                if (can(Permission.VIEW_ALL_TRANSACTIONS)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "transactions"), where("status", "==", "pending"))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingTransactions = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending transactions:", err);
+                                newCounts.pendingTransactions = 0;
+                            })
+                    );
+                }
+
+                // Payouts
+                if (can(Permission.MANAGE_PAYOUTS)) {
+                    countPromises.push(
+                        getCountFromServer(
+                            query(collection(db, "payouts"), where("status", "==", "pending"))
+                        )
+                            .then((snapshot) => {
+                                newCounts.pendingPayouts = snapshot.data().count;
+                            })
+                            .catch((err) => {
+                                console.error("Error counting pending payouts:", err);
+                                newCounts.pendingPayouts = 0;
+                            })
+                    );
+                }
+
+                // Wait for all counts (use allSettled to handle failures gracefully)
+                await Promise.allSettled(countPromises);
+
+                setCounts(newCounts);
+                console.log("✅ Counts fetched successfully:", newCounts);
+                console.log("⏰ Next update in 5 minutes");
+            } catch (error) {
+                console.error("❌ Error fetching counts:", error);
+            }
+        };
+
+        if (user) {
+            fetchCounts();
+
+            const interval = setInterval(fetchCounts, FETCH_INTERVAL);
+
+            return () => clearInterval(interval);
+        }
+    }, [user]);
 
     // Save theme preference
     const toggleTheme = () => {
@@ -83,7 +408,7 @@ const AdminLayout: React.FC = () => {
             icon: Film,
             label: "Movies",
             path: "/admin/content/movies",
-            badge: null,
+            badge: counts.movies > 0 ? counts.movies.toString() : null,
             show: canAny([Permission.EDIT_ANY_CONTENT, Permission.UPLOAD_CONTENT]),
             color: "from-purple-400 to-pink-500",
         },
@@ -91,7 +416,7 @@ const AdminLayout: React.FC = () => {
             icon: TrendingUp,
             label: "Series",
             path: "/admin/content/series",
-            badge: null,
+            badge: counts.series > 0 ? counts.series.toString() : null,
             show: canAny([Permission.EDIT_ANY_CONTENT, Permission.UPLOAD_CONTENT]),
             color: "from-indigo-400 to-purple-500",
         },
@@ -99,7 +424,7 @@ const AdminLayout: React.FC = () => {
             icon: Clapperboard,
             label: "Short Films",
             path: "/admin/content/short-films",
-            badge: null,
+            badge: counts.shortFilms > 0 ? counts.shortFilms.toString() : null,
             show: canAny([Permission.EDIT_ANY_CONTENT, Permission.UPLOAD_CONTENT]),
             color: "from-pink-400 to-rose-500",
         },
@@ -107,7 +432,7 @@ const AdminLayout: React.FC = () => {
             icon: FileText,
             label: "Content Approval",
             path: "/admin/content/approval",
-            badge: "3",
+            badge: counts.pendingApprovals > 0 ? counts.pendingApprovals.toString() : null,
             show: can(Permission.APPROVE_CONTENT),
             color: "from-green-400 to-emerald-500",
         },
@@ -117,7 +442,7 @@ const AdminLayout: React.FC = () => {
             icon: Calendar,
             label: "Events",
             path: "/admin/events/all",
-            badge: null,
+            badge: counts.events > 0 ? counts.events.toString() : null,
             show: can(Permission.UPLOAD_CONTENT),
             color: "from-orange-400 to-amber-500",
         },
@@ -125,7 +450,7 @@ const AdminLayout: React.FC = () => {
             icon: Calendar,
             label: "Event Bookings",
             path: "/admin/events/bookings",
-            badge: null,
+            badge: counts.eventBookings > 0 ? counts.eventBookings.toString() : null,
             show: can(Permission.VIEW_REVENUE),
             color: "from-teal-400 to-cyan-500",
         },
@@ -135,7 +460,7 @@ const AdminLayout: React.FC = () => {
             icon: Users,
             label: "All Users",
             path: "/admin/users/all",
-            badge: null,
+            badge: counts.totalUsers > 0 ? counts.totalUsers.toString() : null,
             show: can(Permission.MANAGE_ADMINS),
             color: "from-blue-400 to-indigo-500",
         },
@@ -143,7 +468,7 @@ const AdminLayout: React.FC = () => {
             icon: UserCog,
             label: "Admin Users",
             path: "/admin/users/admins",
-            badge: null,
+            badge: counts.adminUsers > 0 ? counts.adminUsers.toString() : null,
             show: can(Permission.MANAGE_ADMINS),
             color: "from-violet-400 to-purple-500",
         },
@@ -161,7 +486,7 @@ const AdminLayout: React.FC = () => {
             icon: Flag,
             label: "Comments",
             path: "/admin/moderation/comments",
-            badge: "12",
+            badge: counts.pendingComments > 0 ? counts.pendingComments.toString() : null,
             show: can(Permission.DELETE_COMMENTS),
             color: "from-red-400 to-pink-500",
         },
@@ -169,7 +494,7 @@ const AdminLayout: React.FC = () => {
             icon: Flag,
             label: "Reports",
             path: "/admin/moderation/reports",
-            badge: "5",
+            badge: counts.pendingReports > 0 ? counts.pendingReports.toString() : null,
             show: can(Permission.REVIEW_REPORTS),
             color: "from-orange-400 to-red-500",
         },
@@ -177,7 +502,7 @@ const AdminLayout: React.FC = () => {
             icon: Flag,
             label: "Banned Users",
             path: "/admin/moderation/banned-users",
-            badge: null,
+            badge: counts.bannedUsers > 0 ? counts.bannedUsers.toString() : null,
             show: can(Permission.BAN_USERS),
             color: "from-gray-400 to-gray-600",
         },
@@ -187,7 +512,7 @@ const AdminLayout: React.FC = () => {
             icon: DollarSign,
             label: "Subscriptions",
             path: "/admin/finance/subscriptions",
-            badge: null,
+            badge: counts.activeSubscriptions > 0 ? counts.activeSubscriptions.toString() : null,
             show: can(Permission.MANAGE_SUBSCRIPTIONS),
             color: "from-green-400 to-teal-500",
         },
@@ -195,7 +520,7 @@ const AdminLayout: React.FC = () => {
             icon: DollarSign,
             label: "Transactions",
             path: "/admin/finance/transactions",
-            badge: null,
+            badge: counts.pendingTransactions > 0 ? counts.pendingTransactions.toString() : null,
             show: can(Permission.VIEW_ALL_TRANSACTIONS),
             color: "from-emerald-400 to-green-500",
         },
@@ -203,7 +528,7 @@ const AdminLayout: React.FC = () => {
             icon: DollarSign,
             label: "Payouts",
             path: "/admin/finance/payouts",
-            badge: null,
+            badge: counts.pendingPayouts > 0 ? counts.pendingPayouts.toString() : null,
             show: can(Permission.MANAGE_PAYOUTS),
             color: "from-lime-400 to-green-500",
         },
@@ -461,9 +786,16 @@ const AdminLayout: React.FC = () => {
                                     <motion.div
                                         initial={{ opacity: 0, x: -10 }}
                                         whileHover={{ opacity: 1, x: 0 }}
-                                        className={`absolute left-full ml-2 px-3 py-2 ${darkMode ? 'bg-slate-800 text-white' : 'bg-white text-slate-800'} text-sm rounded-xl whitespace-nowrap shadow-xl pointer-events-none border ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}
+                                        className={`absolute left-full ml-2 px-3 py-2 ${darkMode ? 'bg-slate-800 text-white' : 'bg-white text-slate-800'
+                                            } text-sm rounded-xl whitespace-nowrap shadow-xl pointer-events-none border ${darkMode ? 'border-slate-700' : 'border-slate-200'
+                                            } flex items-center gap-2`}
                                     >
                                         {item.label}
+                                        {item.badge && (
+                                            <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-bold rounded-full">
+                                                {item.badge}
+                                            </span>
+                                        )}
                                     </motion.div>
                                 )}
                             </motion.button>
