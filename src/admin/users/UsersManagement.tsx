@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// 👥 USERS MANAGEMENT - PRODUCTION READY WITH ALL FEATURES
+// 👥 USERS MANAGEMENT - ENHANCED WITH BULK ACTIONS & DETAIL MODAL
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
@@ -24,6 +24,9 @@ import {
     UserX,
     Download,
     RefreshCw,
+    CheckSquare,
+    Square,
+    Zap,
 } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Permission, type UserRole, ROLE_CONFIGS } from '../../types/roles';
@@ -42,11 +45,13 @@ import {
     type DocumentData,
     QueryDocumentSnapshot,
     Timestamp,
+    writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import UserDetailModal from './UserDetailModal';
 
 // ═══════════════════════════════════════════════════════════════
-// 🎨 CUSTOM ALERT MODAL
+// 🎨 CUSTOM ALERT MODAL (Same as before)
 // ═══════════════════════════════════════════════════════════════
 interface AlertModalProps {
     isOpen: boolean;
@@ -225,12 +230,20 @@ const UsersManagement: React.FC = () => {
     const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
     const [hasMore, setHasMore] = useState(true);
 
+    // ✅ NEW: Bulk Selection State
+    const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+    const [showBulkActions, setShowBulkActions] = useState(false);
+
+    // ✅ NEW: User Detail Modal State
+    const [showUserDetailModal, setShowUserDetailModal] = useState(false);
+    const [selectedUserDetail, setSelectedUserDetail] = useState<User | null>(null);
+
     // Alert Modal State
     const [alertModal, setAlertModal] = useState({
         isOpen: false,
         userId: '',
         userName: '',
-        action: '' as 'delete' | 'ban' | 'unban' | '',
+        action: '' as 'delete' | 'ban' | 'unban' | 'bulk_delete' | 'bulk_ban' | 'bulk_activate' | '',
     });
 
     // Toast State
@@ -253,7 +266,6 @@ const UsersManagement: React.FC = () => {
     // ═══════════════════════════════════════════════════════════════
     // 🔐 PERMISSION CHECKS
     // ═══════════════════════════════════════════════════════════════
-
     const canManageUsers = () => {
         return can(Permission.BAN_USERS) ||
             can(Permission.SUSPEND_USERS) ||
@@ -272,6 +284,35 @@ const UsersManagement: React.FC = () => {
     };
 
     // ═══════════════════════════════════════════════════════════════
+    // ✅ NEW: BULK SELECTION HANDLERS
+    // ═══════════════════════════════════════════════════════════════
+    const toggleUserSelection = (userId: string) => {
+        const newSelection = new Set(selectedUsers);
+        if (newSelection.has(userId)) {
+            newSelection.delete(userId);
+        } else {
+            newSelection.add(userId);
+        }
+        setSelectedUsers(newSelection);
+        setShowBulkActions(newSelection.size > 0);
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedUsers.size === filteredUsers.length) {
+            setSelectedUsers(new Set());
+            setShowBulkActions(false);
+        } else {
+            setSelectedUsers(new Set(filteredUsers.map(u => u.uid)));
+            setShowBulkActions(true);
+        }
+    };
+
+    const clearSelection = () => {
+        setSelectedUsers(new Set());
+        setShowBulkActions(false);
+    };
+
+    // ═══════════════════════════════════════════════════════════════
     // 🔄 FETCH USERS WITH FILTERS
     // ═══════════════════════════════════════════════════════════════
     useEffect(() => {
@@ -283,15 +324,12 @@ const UsersManagement: React.FC = () => {
         try {
             setLoading(!loadMore);
 
-            // Build query with filters
             let queryConstraints: any[] = [orderBy('createdAt', 'desc'), limit(20)];
 
-            // Apply Role Filter
             if (filterRole !== 'all') {
                 queryConstraints = [where('role', '==', filterRole), ...queryConstraints];
             }
 
-            // Apply Status Filter
             if (filterStatus !== 'all') {
                 if (filterStatus === 'verified') {
                     queryConstraints = [where('emailVerified', '==', true), ...queryConstraints];
@@ -300,13 +338,11 @@ const UsersManagement: React.FC = () => {
                 }
             }
 
-            // Apply Subscription Filter
             if (filterSubscription !== 'all') {
                 const isPremium = filterSubscription === 'premium';
                 queryConstraints = [where('isPremium', '==', isPremium), ...queryConstraints];
             }
 
-            // Add pagination
             if (loadMore && lastDoc) {
                 queryConstraints.push(startAfter(lastDoc));
             }
@@ -413,7 +449,52 @@ const UsersManagement: React.FC = () => {
     };
 
     // ═══════════════════════════════════════════════════════════════
-    // 🗑️ DELETE USER
+    // ✅ NEW: BULK ACTIONS
+    // ═══════════════════════════════════════════════════════════════
+    const handleBulkDeleteClick = () => {
+        if (!canDeleteUsers()) {
+            showToast('You do not have permission to delete users', 'error');
+            return;
+        }
+
+        setAlertModal({
+            isOpen: true,
+            userId: '',
+            userName: `${selectedUsers.size} users`,
+            action: 'bulk_delete',
+        });
+    };
+
+    const handleBulkBanClick = () => {
+        if (!canManageUsers()) {
+            showToast('You do not have permission to ban users', 'error');
+            return;
+        }
+
+        setAlertModal({
+            isOpen: true,
+            userId: '',
+            userName: `${selectedUsers.size} users`,
+            action: 'bulk_ban',
+        });
+    };
+
+    const handleBulkActivateClick = () => {
+        if (!canManageUsers()) {
+            showToast('You do not have permission to activate users', 'error');
+            return;
+        }
+
+        setAlertModal({
+            isOpen: true,
+            userId: '',
+            userName: `${selectedUsers.size} users`,
+            action: 'bulk_activate',
+        });
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🗑️ DELETE USER (Single)
     // ═══════════════════════════════════════════════════════════════
     const handleDeleteClick = (userId: string, userName: string) => {
         if (!canDeleteUsers()) {
@@ -430,7 +511,7 @@ const UsersManagement: React.FC = () => {
     };
 
     // ═══════════════════════════════════════════════════════════════
-    // 🚫 BAN/UNBAN USER
+    // 🚫 BAN/UNBAN USER (Single)
     // ═══════════════════════════════════════════════════════════════
     const handleBanClick = (userId: string, userName: string, currentStatus: string) => {
         if (!canManageUsers()) {
@@ -452,10 +533,12 @@ const UsersManagement: React.FC = () => {
         setActionLoading(true);
         try {
             if (alertModal.action === 'delete') {
+                // Single delete
                 await deleteDoc(doc(db, 'users', alertModal.userId));
                 setUsers((prev) => prev.filter((u) => u.uid !== alertModal.userId));
                 showToast('User deleted successfully!', 'success');
             } else if (alertModal.action === 'ban') {
+                // Single ban
                 await updateDoc(doc(db, 'users', alertModal.userId), {
                     status: 'banned',
                     'moderation.bannedAt': new Date().toISOString(),
@@ -469,6 +552,7 @@ const UsersManagement: React.FC = () => {
                 );
                 showToast('User banned successfully!', 'success');
             } else if (alertModal.action === 'unban') {
+                // Single unban
                 await updateDoc(doc(db, 'users', alertModal.userId), {
                     status: 'active',
                     'moderation.bannedAt': null,
@@ -482,6 +566,51 @@ const UsersManagement: React.FC = () => {
                     )
                 );
                 showToast('User unbanned successfully!', 'success');
+            } else if (alertModal.action === 'bulk_delete') {
+                // Bulk delete
+                const batch = writeBatch(db);
+                selectedUsers.forEach(userId => {
+                    batch.delete(doc(db, 'users', userId));
+                });
+                await batch.commit();
+                setUsers((prev) => prev.filter(u => !selectedUsers.has(u.uid)));
+                showToast(`${selectedUsers.size} users deleted successfully!`, 'success');
+                clearSelection();
+            } else if (alertModal.action === 'bulk_ban') {
+                // Bulk ban
+                const batch = writeBatch(db);
+                selectedUsers.forEach(userId => {
+                    batch.update(doc(db, 'users', userId), {
+                        status: 'banned',
+                        'moderation.bannedAt': new Date().toISOString(),
+                        'moderation.bannedBy': userRole,
+                        updatedAt: Timestamp.now(),
+                    });
+                });
+                await batch.commit();
+                setUsers((prev) =>
+                    prev.map(u => selectedUsers.has(u.uid) ? { ...u, status: 'banned' } : u)
+                );
+                showToast(`${selectedUsers.size} users banned successfully!`, 'success');
+                clearSelection();
+            } else if (alertModal.action === 'bulk_activate') {
+                // Bulk activate
+                const batch = writeBatch(db);
+                selectedUsers.forEach(userId => {
+                    batch.update(doc(db, 'users', userId), {
+                        status: 'active',
+                        'moderation.bannedAt': null,
+                        'moderation.bannedBy': null,
+                        'moderation.banReason': null,
+                        updatedAt: Timestamp.now(),
+                    });
+                });
+                await batch.commit();
+                setUsers((prev) =>
+                    prev.map(u => selectedUsers.has(u.uid) ? { ...u, status: 'active' } : u)
+                );
+                showToast(`${selectedUsers.size} users activated successfully!`, 'success');
+                clearSelection();
             }
 
             setAlertModal({ isOpen: false, userId: '', userName: '', action: '' });
@@ -507,11 +636,12 @@ const UsersManagement: React.FC = () => {
     };
 
     // ═══════════════════════════════════════════════════════════════
-    // 👁️ VIEW USER
+    // 👁️ VIEW USER (NEW: Opens Detail Modal)
     // ═══════════════════════════════════════════════════════════════
-    const handleView = (userId: string) => {
-        navigate(`/admin/users/view/${userId}`)
-    }
+    const handleView = (user: User) => {
+        setSelectedUserDetail(user);
+        setShowUserDetailModal(true);
+    };
 
     // ═══════════════════════════════════════════════════════════════
     // 🎉 SHOW TOAST
@@ -522,6 +652,37 @@ const UsersManagement: React.FC = () => {
 
     const hideToast = () => {
         setToast({ ...toast, isVisible: false });
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📤 EXPORT TO CSV (NEW)
+    // ═══════════════════════════════════════════════════════════════
+    const exportToCSV = () => {
+        const csvData = filteredUsers.map(user => ({
+            Name: user.displayName,
+            Email: user.email,
+            Phone: user.phoneNumber || 'N/A',
+            Role: user.role,
+            Status: user.status,
+            Plan: user.currentPlanId,
+            Premium: user.isPremium ? 'Yes' : 'No',
+            Verified: user.emailVerified ? 'Yes' : 'No',
+            Joined: formatDate(user.createdAt),
+        }));
+
+        const headers = Object.keys(csvData[0]).join(',');
+        const rows = csvData.map(row => Object.values(row).join(',')).join('\n');
+        const csv = `${headers}\n${rows}`;
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        showToast('Users exported successfully!', 'success');
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -625,11 +786,32 @@ const UsersManagement: React.FC = () => {
                 confirmText: 'Ban User',
                 type: 'warning' as const,
             };
-        } else {
+        } else if (alertModal.action === 'unban') {
             return {
                 title: 'Unban User?',
                 message: `Are you sure you want to unban "${alertModal.userName}"? They will regain access to their account.`,
                 confirmText: 'Unban User',
+                type: 'success' as const,
+            };
+        } else if (alertModal.action === 'bulk_delete') {
+            return {
+                title: 'Delete Multiple Users?',
+                message: `Are you sure you want to delete ${alertModal.userName}? This will permanently delete all their data. This action cannot be undone.`,
+                confirmText: 'Delete All',
+                type: 'danger' as const,
+            };
+        } else if (alertModal.action === 'bulk_ban') {
+            return {
+                title: 'Ban Multiple Users?',
+                message: `Are you sure you want to ban ${alertModal.userName}? They will not be able to access their accounts until unbanned.`,
+                confirmText: 'Ban All',
+                type: 'warning' as const,
+            };
+        } else {
+            return {
+                title: 'Activate Multiple Users?',
+                message: `Are you sure you want to activate ${alertModal.userName}? They will regain access to their accounts.`,
+                confirmText: 'Activate All',
                 type: 'success' as const,
             };
         }
@@ -638,7 +820,7 @@ const UsersManagement: React.FC = () => {
     const modalConfig = getModalConfig();
 
     return (
-        <div className="min-h-screen w-full">
+        <div className="min-h-screen w-full pb-8">
             {/* Toast Notification */}
             <Toast
                 message={toast.message}
@@ -656,10 +838,20 @@ const UsersManagement: React.FC = () => {
                 loading={actionLoading}
             />
 
+            {/* ✅ NEW: User Detail Modal */}
+            {showUserDetailModal && selectedUserDetail && (
+                <UserDetailModal
+                    isOpen={showUserDetailModal}
+                    onClose={() => {
+                        setShowUserDetailModal(false);
+                        setSelectedUserDetail(null);
+                    }}
+                    user={selectedUserDetail}
+                />
+            )}
+
             <div className="space-y-6 w-full">
-                {/* ═══════════════════════════════════════════════════════════ */}
-                {/* 📊 HEADER & STATS */}
-                {/* ═══════════════════════════════════════════════════════════ */}
+                {/* HEADER & STATS */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -724,9 +916,71 @@ const UsersManagement: React.FC = () => {
                     </div>
                 </motion.div>
 
-                {/* ═══════════════════════════════════════════════════════════ */}
-                {/* 🔍 SEARCH & FILTERS */}
-                {/* ═══════════════════════════════════════════════════════════ */}
+                {/* ✅ NEW: BULK ACTIONS BAR */}
+                <AnimatePresence>
+                    {showBulkActions && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl p-4 text-white shadow-lg flex items-center justify-between"
+                        >
+                            <div className="flex items-center gap-4">
+                                <Zap size={24} />
+                                <div>
+                                    <p className="font-bold text-lg">{selectedUsers.size} users selected</p>
+                                    <p className="text-sm text-white/80">Perform bulk actions on selected users</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {canManageUsers() && (
+                                    <>
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={handleBulkActivateClick}
+                                            className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-xl font-bold flex items-center gap-2 transition-all"
+                                        >
+                                            <UserCheck size={18} />
+                                            Activate
+                                        </motion.button>
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={handleBulkBanClick}
+                                            className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold flex items-center gap-2 transition-all"
+                                        >
+                                            <Ban size={18} />
+                                            Ban
+                                        </motion.button>
+                                    </>
+                                )}
+                                {canDeleteUsers() && (
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleBulkDeleteClick}
+                                        className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-xl font-bold flex items-center gap-2 transition-all"
+                                    >
+                                        <Trash2 size={18} />
+                                        Delete
+                                    </motion.button>
+                                )}
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={clearSelection}
+                                    className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-xl font-bold flex items-center gap-2 transition-all"
+                                >
+                                    <XCircle size={18} />
+                                    Clear
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* SEARCH & FILTERS */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -748,7 +1002,6 @@ const UsersManagement: React.FC = () => {
 
                         {/* Filters Row */}
                         <div className="flex flex-wrap gap-3">
-                            {/* Role Filter */}
                             <select
                                 value={filterRole}
                                 onChange={(e) => {
@@ -769,7 +1022,6 @@ const UsersManagement: React.FC = () => {
                                 })}
                             </select>
 
-                            {/* Status Filter */}
                             <select
                                 value={filterStatus}
                                 onChange={(e) => {
@@ -786,7 +1038,6 @@ const UsersManagement: React.FC = () => {
                                 <option value="verified">Verified</option>
                             </select>
 
-                            {/* Subscription Filter */}
                             <select
                                 value={filterSubscription}
                                 onChange={(e) => {
@@ -800,7 +1051,6 @@ const UsersManagement: React.FC = () => {
                                 <option value="free">Free</option>
                             </select>
 
-                            {/* Refresh Button */}
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
@@ -815,28 +1065,24 @@ const UsersManagement: React.FC = () => {
                                 Refresh
                             </motion.button>
 
-                            {/* Export Button */}
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => showToast('Export feature coming soon!', 'success')}
+                                onClick={exportToCSV}
                                 className="px-6 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-all flex items-center gap-2"
                             >
                                 <Download size={18} />
-                                Export
+                                Export CSV
                             </motion.button>
                         </div>
 
-                        {/* Results Count */}
                         <div className="text-sm text-slate-600 dark:text-slate-400">
                             Showing <span className="font-bold text-slate-800 dark:text-white">{filteredUsers.length}</span> of <span className="font-bold text-slate-800 dark:text-white">{users.length}</span> users
                         </div>
                     </div>
                 </motion.div>
 
-                {/* ═══════════════════════════════════════════════════════════ */}
-                {/* 📋 USERS TABLE - FULL WIDTH */}
-                {/* ═══════════════════════════════════════════════════════════ */}
+                {/* USERS TABLE */}
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-96 gap-4">
                         <motion.div
@@ -853,6 +1099,19 @@ const UsersManagement: React.FC = () => {
                                 <table className="w-full min-w-full">
                                     <thead className="bg-slate-50 dark:bg-slate-800/50">
                                         <tr>
+                                            {/* ✅ NEW: Checkbox Column */}
+                                            <th className="px-6 py-4 text-left">
+                                                <button
+                                                    onClick={toggleSelectAll}
+                                                    className="text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                                                >
+                                                    {selectedUsers.size === filteredUsers.length ? (
+                                                        <CheckSquare size={20} />
+                                                    ) : (
+                                                        <Square size={20} />
+                                                    )}
+                                                </button>
+                                            </th>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                                                 User
                                             </th>
@@ -889,131 +1148,111 @@ const UsersManagement: React.FC = () => {
                                             return (
                                                 <motion.tr
                                                     key={user.uid}
-                                                    initial={{ opacity: 0, y: 20 }}
-                                                    animate={{ opacity: 1, y: 0 }}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
                                                     transition={{ delay: index * 0.05 }}
-                                                    className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                                    className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all"
                                                 >
+                                                    {/* ✅ NEW: Checkbox Cell */}
+                                                    <td className="px-6 py-4">
+                                                        <button
+                                                            onClick={() => toggleUserSelection(user.uid)}
+                                                            className="text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                                                        >
+                                                            {selectedUsers.has(user.uid) ? (
+                                                                <CheckSquare size={20} className="text-blue-500" />
+                                                            ) : (
+                                                                <Square size={20} />
+                                                            )}
+                                                        </button>
+                                                    </td>
+
                                                     {/* User Info */}
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                    <td className="px-6 py-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                                                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                                                                 {user.photoURL ? (
-                                                                    <img
-                                                                        src={user.photoURL}
-                                                                        alt={user.displayName}
-                                                                        className="w-full h-full object-cover"
-                                                                        onError={(e) => {
-                                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                                        }}
-                                                                    />
+                                                                    <img src={user.photoURL} alt={user.displayName} className="w-full h-full rounded-xl object-cover" />
                                                                 ) : (
                                                                     user.displayName.charAt(0).toUpperCase()
                                                                 )}
                                                             </div>
-                                                            <div className="min-w-0">
-                                                                <p className="font-bold text-slate-800 dark:text-white truncate">
+                                                            <div>
+                                                                <p className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                                                     {user.displayName}
+                                                                    {user.emailVerified && (
+                                                                        <CheckCircle size={14} className="text-green-500" />
+                                                                    )}
                                                                 </p>
-                                                                <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
-                                                                    {user.email}
-                                                                </p>
+                                                                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
                                                                 {user.phoneNumber && (
-                                                                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
-                                                                        {user.phoneNumber}
-                                                                    </p>
+                                                                    <p className="text-xs text-slate-400 dark:text-slate-500">{user.phoneNumber}</p>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     </td>
 
                                                     {/* Role */}
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-3 py-1 bg-gradient-to-r ${roleBadge.gradient} text-white rounded-full text-xs font-bold flex items-center gap-1 w-fit`}>
-                                                            <RoleIcon size={12} />
+                                                    <td className="px-6 py-4">
+                                                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r ${roleBadge.gradient} text-white font-bold text-xs shadow-lg`}>
+                                                            <RoleIcon size={14} />
                                                             {roleBadge.text}
-                                                        </span>
-                                                        <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
-                                                            Level {roleBadge.level}
-                                                        </span>
+                                                        </div>
                                                     </td>
 
                                                     {/* Status */}
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className={`px-3 py-1 ${statusBadge.class} rounded-full text-xs font-bold flex items-center gap-1 w-fit`}>
-                                                                <StatusIcon size={12} />
-                                                                {statusBadge.text}
-                                                            </span>
-                                                            {user.emailVerified && (
-                                                                <span className="px-3 py-1 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-full text-xs font-bold flex items-center gap-1 w-fit">
-                                                                    <CheckCircle size={12} />
-                                                                    Verified
-                                                                </span>
-                                                            )}
+                                                    <td className="px-6 py-4">
+                                                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${statusBadge.class} font-bold text-xs`}>
+                                                            <StatusIcon size={14} />
+                                                            {statusBadge.text}
                                                         </div>
                                                     </td>
 
                                                     {/* Plan */}
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        {user.isPremium ? (
-                                                            <div className="flex flex-col gap-1">
-                                                                <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full text-xs font-bold flex items-center gap-1 w-fit">
-                                                                    <Crown size={12} />
-                                                                    {user.subscription?.planName || user.currentPlanId}
-                                                                </span>
-                                                                {user.subscription?.status && (
-                                                                    <span className="text-xs text-slate-500">
-                                                                        {user.subscription.status}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded-full text-xs font-bold">
-                                                                Free
-                                                            </span>
-                                                        )}
-                                                    </td>
-
-                                                    {/* Devices */}
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="font-semibold">
-                                                                {user.currentDeviceCount || 0} / {user.maxDevices || 1}
-                                                            </span>
-                                                            <span className="text-xs text-slate-500">
-                                                                {user.maxProfiles || 1} profiles
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            {user.isPremium && <Crown size={16} className="text-yellow-500" />}
+                                                            <span className="font-semibold text-slate-800 dark:text-white capitalize">
+                                                                {user.currentPlanId || 'Free'}
                                                             </span>
                                                         </div>
                                                     </td>
 
-                                                    {/* Joined Date */}
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                                                        <div className="flex items-center gap-2">
-                                                            <Calendar size={14} className="flex-shrink-0" />
-                                                            <span>{formatDate(user.createdAt)}</span>
+                                                    {/* Devices */}
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-slate-600 dark:text-slate-400">
+                                                            {user.currentDeviceCount || 0} / {user.maxDevices || 3}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Joined */}
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                                            <Calendar size={14} />
+                                                            {formatDate(user.createdAt)}
                                                         </div>
                                                     </td>
 
                                                     {/* Last Login */}
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                                                        <div className="flex items-center gap-2">
-                                                            <Clock size={14} className="flex-shrink-0" />
-                                                            <span>{getTimeAgo(user.lastLogin)}</span>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                                            <Clock size={14} />
+                                                            {getTimeAgo(user.lastLogin)}
                                                         </div>
                                                     </td>
 
                                                     {/* Actions */}
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <td className="px-6 py-4">
                                                         <div className="flex items-center justify-end gap-2">
+                                                            {/* ✅ UPDATED: View opens modal */}
                                                             <motion.button
                                                                 whileHover={{ scale: 1.1 }}
                                                                 whileTap={{ scale: 0.9 }}
-                                                                onClick={() => handleView(user.uid)}
-                                                                className="p-2 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all"
-                                                                title="View User"
+                                                                onClick={() => handleView(user)}
+                                                                className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all"
+                                                                title="View Details"
                                                             >
-                                                                <Eye size={16} />
+                                                                <Eye size={18} />
                                                             </motion.button>
 
                                                             {canAssignRoles() && (
@@ -1021,10 +1260,10 @@ const UsersManagement: React.FC = () => {
                                                                     whileHover={{ scale: 1.1 }}
                                                                     whileTap={{ scale: 0.9 }}
                                                                     onClick={() => handleEdit(user.uid, user.role)}
-                                                                    className="p-2 bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all"
+                                                                    className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all"
                                                                     title="Edit User"
                                                                 >
-                                                                    <Edit size={16} />
+                                                                    <Edit size={18} />
                                                                 </motion.button>
                                                             )}
 
@@ -1034,12 +1273,12 @@ const UsersManagement: React.FC = () => {
                                                                     whileTap={{ scale: 0.9 }}
                                                                     onClick={() => handleBanClick(user.uid, user.displayName, user.status || 'active')}
                                                                     className={`p-2 rounded-lg transition-all ${user.status === 'banned'
-                                                                        ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                                                                        : 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'
+                                                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                                                                        : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'
                                                                         }`}
                                                                     title={user.status === 'banned' ? 'Unban User' : 'Ban User'}
                                                                 >
-                                                                    {user.status === 'banned' ? <UserCheck size={16} /> : <UserX size={16} />}
+                                                                    {user.status === 'banned' ? <UserCheck size={18} /> : <Ban size={18} />}
                                                                 </motion.button>
                                                             )}
 
@@ -1048,10 +1287,10 @@ const UsersManagement: React.FC = () => {
                                                                     whileHover={{ scale: 1.1 }}
                                                                     whileTap={{ scale: 0.9 }}
                                                                     onClick={() => handleDeleteClick(user.uid, user.displayName)}
-                                                                    className="p-2 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
+                                                                    className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
                                                                     title="Delete User"
                                                                 >
-                                                                    <Trash2 size={16} />
+                                                                    <Trash2 size={18} />
                                                                 </motion.button>
                                                             )}
                                                         </div>
@@ -1066,12 +1305,12 @@ const UsersManagement: React.FC = () => {
 
                         {/* Load More */}
                         {hasMore && (
-                            <div className="flex justify-center mt-8">
+                            <div className="flex justify-center">
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => fetchUsers(true)}
-                                    className="px-10 py-4 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-2xl font-bold hover:shadow-2xl transition-all"
+                                    className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
                                 >
                                     Load More Users
                                 </motion.button>
@@ -1079,17 +1318,11 @@ const UsersManagement: React.FC = () => {
                         )}
                     </>
                 ) : (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex flex-col items-center justify-center h-96 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700"
-                    >
-                        <Users size={64} className="text-slate-300 dark:text-slate-700 mb-4" />
-                        <h3 className="text-xl font-bold text-slate-600 dark:text-slate-400 mb-2">No Users Found</h3>
-                        <p className="text-slate-500 dark:text-slate-500 mb-6">
-                            {searchTerm ? 'Try different search terms' : 'No users match the selected filters'}
-                        </p>
-                    </motion.div>
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-16 text-center">
+                        <UserX size={64} className="mx-auto text-slate-400 mb-4" />
+                        <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">No Users Found</h3>
+                        <p className="text-slate-600 dark:text-slate-400">Try adjusting your search or filters</p>
+                    </div>
                 )}
             </div>
         </div>

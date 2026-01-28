@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// ✏️ ADD/EDIT USER - ADMIN PANEL - COMPLETE FINAL VERSION
+// ✏️ ADD/EDIT USER - ENHANCED WITH SUBSCRIPTION MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
-// Path: src/pages/admin/users/AddEditUser.tsx
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,8 +16,13 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Loader,
   Calendar,
+  Plus,
+  Minus,
+  Gift,
+  Send,
+  History,
+  Zap,
 } from "lucide-react";
 import {
   doc,
@@ -27,6 +31,12 @@ import {
   updateDoc,
   serverTimestamp,
   collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  Timestamp,
 } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
@@ -94,14 +104,11 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// 📝 LOCAL TYPE DEFINITIONS (Form-specific)
+// 📝 LOCAL TYPE DEFINITIONS
 // ═══════════════════════════════════════════════════════════════
 type FormUserStatus = "active" | "banned" | "suspended";
 type FormSubscriptionStatus = "active" | "inactive" | "cancelled" | "expired";
 
-// ═══════════════════════════════════════════════════════════════
-// 📝 FORM DATA INTERFACE
-// ═══════════════════════════════════════════════════════════════
 interface FormData {
   displayName: string;
   email: string;
@@ -112,6 +119,7 @@ interface FormData {
   isPremium: boolean;
   currentPlanId: string;
   subscriptionStatus: FormSubscriptionStatus;
+  subscriptionEndDate: Date | null;
   maxDevices: number;
   maxProfiles: number;
   rewardPoints: number;
@@ -119,6 +127,14 @@ interface FormData {
   phoneVerified: boolean;
   kycVerified: boolean;
   twoFactorEnabled: boolean;
+}
+
+// ✅ NEW: Activity Log Entry
+interface ActivityLogEntry {
+  action: string;
+  timestamp: any;
+  performedBy: string;
+  details: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -136,6 +152,14 @@ const AddEditUser: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // ✅ NEW: Activity Log State
+  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+
+  // ✅ NEW: Subscription Management State
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [extendMonths, setExtendMonths] = useState(1);
+
   // Toast State
   const [toast, setToast] = useState({
     isVisible: false,
@@ -143,7 +167,7 @@ const AddEditUser: React.FC = () => {
     type: "success" as "success" | "error" | "info" | "warning",
   });
 
-  // Form Data with default values
+  // Form Data
   const [formData, setFormData] = useState<FormData>({
     displayName: "",
     email: "",
@@ -154,6 +178,7 @@ const AddEditUser: React.FC = () => {
     isPremium: false,
     currentPlanId: "free",
     subscriptionStatus: "inactive",
+    subscriptionEndDate: null,
     maxDevices: 3,
     maxProfiles: 5,
     rewardPoints: 0,
@@ -165,21 +190,42 @@ const AddEditUser: React.FC = () => {
 
   // Available Plans
   const plans = [
-    { id: "free", name: "Free" },
-    { id: "basic", name: "Basic" },
-    { id: "standard", name: "Standard" },
-    { id: "premium", name: "Premium" },
+    { id: "free", name: "Free", price: 0, duration: 0 },
+    { id: "basic", name: "Basic", price: 199, duration: 1 },
+    { id: "standard", name: "Standard", price: 499, duration: 3 },
+    { id: "premium", name: "Premium", price: 999, duration: 12 },
   ];
 
   useEffect(() => {
     if (isEditMode && userId) {
       fetchUserData();
+      fetchActivityLog();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  const toSafeDate = (value: any): Date | null => {
+    if (!value) return null;
+
+    // If it's a Firestore Timestamp
+    if (value.toDate && typeof value.toDate === 'function') {
+      return value.toDate();
+    }
+
+    // If it's a string
+    if (typeof value === 'string') {
+      return new Date(value);
+    }
+
+    // If it's already a Date
+    if (value instanceof Date) {
+      return value;
+    }
+
+    return null;
+  };
   // ═══════════════════════════════════════════════════════════════
-  // 📥 FETCH USER DATA FOR EDIT MODE
+  // 📥 FETCH USER DATA
   // ═══════════════════════════════════════════════════════════════
   const fetchUserData = async () => {
     try {
@@ -197,31 +243,30 @@ const AddEditUser: React.FC = () => {
       const userData = userDoc.data() as UserType;
       console.log("✅ User data loaded:", userData);
 
-      // Type-safe mapping with validation
       const safeRole: UserRole =
         userData.role &&
-        [
-          "super_admin",
-          "admin",
-          "moderator",
-          "creator",
-          "premium",
-          "viewer",
-        ].includes(userData.role)
+          [
+            "super_admin",
+            "admin",
+            "moderator",
+            "creator",
+            "premium",
+            "viewer",
+          ].includes(userData.role)
           ? userData.role
           : "viewer";
 
       const safeStatus: FormUserStatus =
         userData.status &&
-        ["active", "banned", "suspended"].includes(userData.status)
+          ["active", "banned", "suspended"].includes(userData.status)
           ? (userData.status as FormUserStatus)
           : "active";
 
       const safeSubscriptionStatus: FormSubscriptionStatus =
         userData.subscriptionStatus &&
-        ["active", "inactive", "cancelled", "expired"].includes(
-          userData.subscriptionStatus,
-        )
+          ["active", "inactive", "cancelled", "expired"].includes(
+            userData.subscriptionStatus,
+          )
           ? (userData.subscriptionStatus as FormSubscriptionStatus)
           : "inactive";
 
@@ -229,12 +274,13 @@ const AddEditUser: React.FC = () => {
         displayName: userData.displayName || "",
         email: userData.email || "",
         phoneNumber: userData.phoneNumber || "",
-        password: "", // Never fetch password
+        password: "",
         role: safeRole,
         status: safeStatus,
         isPremium: userData.isPremium || false,
         currentPlanId: userData.currentPlanId || "free",
         subscriptionStatus: safeSubscriptionStatus,
+        subscriptionEndDate: toSafeDate(userData.subscriptionEndDate),
         maxDevices: userData.maxDevices || 3,
         maxProfiles: userData.maxProfiles || 5,
         rewardPoints: userData.rewardPoints || 0,
@@ -254,26 +300,41 @@ const AddEditUser: React.FC = () => {
   };
 
   // ═══════════════════════════════════════════════════════════════
+  // ✅ NEW: FETCH ACTIVITY LOG
+  // ═══════════════════════════════════════════════════════════════
+  const fetchActivityLog = async () => {
+    try {
+      const activityQuery = query(
+        collection(db, "users", userId!, "activityLog"),
+        orderBy("timestamp", "desc"),
+        limit(20)
+      );
+      const activitySnapshot = await getDocs(activityQuery);
+      const activities = activitySnapshot.docs.map((doc) => doc.data()) as ActivityLogEntry[];
+      setActivityLog(activities);
+    } catch (error) {
+      console.error("Error fetching activity log:", error);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
   // ✅ FORM VALIDATION
   // ═══════════════════════════════════════════════════════════════
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Display Name
     if (!formData.displayName.trim()) {
       newErrors.displayName = "Display name is required";
     } else if (formData.displayName.trim().length < 2) {
       newErrors.displayName = "Display name must be at least 2 characters";
     }
 
-    // Email
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid email format";
     }
 
-    // Phone Number (optional but validate if provided)
     if (
       formData.phoneNumber &&
       !/^\+?[\d\s-]{10,}$/.test(formData.phoneNumber)
@@ -281,7 +342,6 @@ const AddEditUser: React.FC = () => {
       newErrors.phoneNumber = "Invalid phone number format";
     }
 
-    // Password (required only for new users)
     if (!isEditMode) {
       if (!formData.password) {
         newErrors.password = "Password is required";
@@ -292,17 +352,14 @@ const AddEditUser: React.FC = () => {
       newErrors.password = "Password must be at least 6 characters";
     }
 
-    // Max Devices
     if (formData.maxDevices < 1 || formData.maxDevices > 10) {
       newErrors.maxDevices = "Max devices must be between 1 and 10";
     }
 
-    // Max Profiles
     if (formData.maxProfiles < 1 || formData.maxProfiles > 10) {
       newErrors.maxProfiles = "Max profiles must be between 1 and 10";
     }
 
-    // Reward Points
     if (formData.rewardPoints < 0) {
       newErrors.rewardPoints = "Reward points cannot be negative";
     }
@@ -344,7 +401,6 @@ const AddEditUser: React.FC = () => {
     try {
       console.log("🆕 Creating new user...");
 
-      // Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
@@ -354,7 +410,6 @@ const AddEditUser: React.FC = () => {
       const newUserId = userCredential.user.uid;
       console.log("✅ Firebase Auth user created:", newUserId);
 
-      // Create Firestore user document
       const userDocData = {
         uid: newUserId,
         displayName: formData.displayName.trim(),
@@ -367,7 +422,9 @@ const AddEditUser: React.FC = () => {
         subscriptionPlanId: formData.isPremium ? formData.currentPlanId : null,
         subscriptionStatus: formData.subscriptionStatus,
         subscriptionStartDate: formData.isPremium ? serverTimestamp() : null,
-        subscriptionEndDate: null,
+        subscriptionEndDate: formData.subscriptionEndDate
+          ? Timestamp.fromDate(formData.subscriptionEndDate)
+          : null,
         subscription: null,
         preferences: {
           language: "en",
@@ -434,19 +491,25 @@ const AddEditUser: React.FC = () => {
         updatedAt: serverTimestamp(),
       });
 
+      // ✅ NEW: Log activity
+      await addDoc(collection(db, "users", newUserId, "activityLog"), {
+        action: "User Created",
+        timestamp: serverTimestamp(),
+        performedBy: "Admin",
+        details: "User account created by admin",
+      });
+
       console.log("✅ All user data initialized");
 
       showToast("User created successfully!", "success");
       setLoading(false);
 
-      // Navigate to user view after 1.5 seconds
       setTimeout(() => {
-        navigate(`/admin/users/view/${newUserId}`);
+        navigate(`/admin/users/all`);
       }, 1500);
     } catch (error: any) {
       console.error("❌ Error creating user:", error);
 
-      // Handle specific errors
       if (error.code === "auth/email-already-in-use") {
         setErrors({ email: "Email already in use" });
         throw new Error("Email already in use");
@@ -478,6 +541,9 @@ const AddEditUser: React.FC = () => {
         currentPlanId: formData.currentPlanId,
         isPremium: formData.isPremium,
         subscriptionStatus: formData.subscriptionStatus,
+        subscriptionEndDate: formData.subscriptionEndDate
+          ? Timestamp.fromDate(formData.subscriptionEndDate)
+          : null,
         maxDevices: formData.maxDevices,
         maxProfiles: formData.maxProfiles,
         status: formData.status,
@@ -492,13 +558,12 @@ const AddEditUser: React.FC = () => {
       await updateDoc(userRef, updateData);
       console.log("✅ User updated successfully");
 
-      // Update userDevices maxDevices if changed
+      // Update userDevices
       const devicesRef = doc(db, "userDevices", userId!);
       await updateDoc(devicesRef, {
         maxDevices: formData.maxDevices,
         updatedAt: serverTimestamp(),
       }).catch(() => {
-        // If document doesn't exist, create it
         setDoc(devicesRef, {
           devices: [],
           maxDevices: formData.maxDevices,
@@ -506,12 +571,19 @@ const AddEditUser: React.FC = () => {
         });
       });
 
+      // ✅ NEW: Log activity
+      await addDoc(collection(db, "users", userId!, "activityLog"), {
+        action: "User Updated",
+        timestamp: serverTimestamp(),
+        performedBy: "Admin",
+        details: "User account updated by admin",
+      });
+
       showToast("User updated successfully!", "success");
       setLoading(false);
 
-      // Navigate to user view after 1.5 seconds
       setTimeout(() => {
-        navigate(`/admin/users/view/${userId}`);
+        navigate(`/admin/users/all`);
       }, 1500);
     } catch (error: any) {
       console.error("❌ Error updating user:", error);
@@ -520,7 +592,118 @@ const AddEditUser: React.FC = () => {
   };
 
   // ═══════════════════════════════════════════════════════════════
-  // 🔑 SEND PASSWORD RESET EMAIL (Edit Mode Only)
+  // ✅ NEW: EXTEND SUBSCRIPTION
+  // ═══════════════════════════════════════════════════════════════
+  const handleExtendSubscription = async () => {
+    try {
+      const newEndDate = new Date(formData.subscriptionEndDate || new Date());
+      newEndDate.setMonth(newEndDate.getMonth() + extendMonths);
+
+      const userRef = doc(db, "users", userId!);
+      await updateDoc(userRef, {
+        subscriptionEndDate: Timestamp.fromDate(newEndDate),
+        subscriptionStatus: "active",
+        isPremium: true,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Log activity
+      await addDoc(collection(db, "users", userId!, "activityLog"), {
+        action: "Subscription Extended",
+        timestamp: serverTimestamp(),
+        performedBy: "Admin",
+        details: `Subscription extended by ${extendMonths} month(s)`,
+      });
+
+      setFormData({
+        ...formData,
+        subscriptionEndDate: newEndDate,
+        subscriptionStatus: "active",
+        isPremium: true,
+      });
+
+      showToast(`Subscription extended by ${extendMonths} month(s)!`, "success");
+      setShowSubscriptionModal(false);
+      fetchActivityLog();
+    } catch (error) {
+      console.error("Error extending subscription:", error);
+      showToast("Failed to extend subscription", "error");
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ NEW: GRANT FREE TRIAL
+  // ═══════════════════════════════════════════════════════════════
+  const handleGrantFreeTrial = async () => {
+    try {
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 7); // 7-day trial
+
+      const userRef = doc(db, "users", userId!);
+      await updateDoc(userRef, {
+        subscriptionEndDate: Timestamp.fromDate(trialEndDate),
+        subscriptionStatus: "active",
+        isPremium: true,
+        currentPlanId: "trial",
+        updatedAt: serverTimestamp(),
+      });
+
+      // Log activity
+      await addDoc(collection(db, "users", userId!, "activityLog"), {
+        action: "Free Trial Granted",
+        timestamp: serverTimestamp(),
+        performedBy: "Admin",
+        details: "7-day free trial granted by admin",
+      });
+
+      setFormData({
+        ...formData,
+        subscriptionEndDate: trialEndDate,
+        subscriptionStatus: "active",
+        isPremium: true,
+        currentPlanId: "trial",
+      });
+
+      showToast("7-day free trial granted!", "success");
+      fetchActivityLog();
+    } catch (error) {
+      console.error("Error granting free trial:", error);
+      showToast("Failed to grant free trial", "error");
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ NEW: ADD REWARD POINTS
+  // ═══════════════════════════════════════════════════════════════
+  const handleAddRewardPoints = async (points: number) => {
+    try {
+      const newPoints = formData.rewardPoints + points;
+
+      const userRef = doc(db, "users", userId!);
+      await updateDoc(userRef, {
+        rewardPoints: newPoints,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Log activity
+      await addDoc(collection(db, "users", userId!, "activityLog"), {
+        action: "Reward Points Added",
+        timestamp: serverTimestamp(),
+        performedBy: "Admin",
+        details: `${points} reward points added by admin`,
+      });
+
+      setFormData({ ...formData, rewardPoints: newPoints });
+      showToast(`${points} reward points added!`, "success");
+      fetchActivityLog();
+    } catch (error) {
+      console.error("Error adding reward points:", error);
+      showToast("Failed to add reward points", "error");
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🔑 SEND PASSWORD RESET EMAIL
   // ═══════════════════════════════════════════════════════════════
   const handleResetPassword = async () => {
     if (!formData.email) {
@@ -531,6 +714,17 @@ const AddEditUser: React.FC = () => {
     try {
       await sendPasswordResetEmail(auth, formData.email);
       showToast("Password reset email sent successfully!", "success");
+
+      // Log activity
+      if (isEditMode) {
+        await addDoc(collection(db, "users", userId!, "activityLog"), {
+          action: "Password Reset Sent",
+          timestamp: serverTimestamp(),
+          performedBy: "Admin",
+          details: "Password reset email sent by admin",
+        });
+        fetchActivityLog();
+      }
     } catch (error: any) {
       console.error("❌ Error sending reset email:", error);
       showToast("Failed to send password reset email", "error");
@@ -561,11 +755,12 @@ const AddEditUser: React.FC = () => {
       setFormData((prev) => ({ ...prev, [name]: checked }));
     } else if (type === "number") {
       setFormData((prev) => ({ ...prev, [name]: parseInt(value) || 0 }));
+    } else if (type === "date") {
+      setFormData((prev) => ({ ...prev, [name]: value ? new Date(value) : null }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
 
-    // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -575,10 +770,30 @@ const AddEditUser: React.FC = () => {
     }
   };
 
-  // Get role description safely
   const getRoleDescription = (role: UserRole): string => {
     const roleKey = role as keyof typeof ROLE_CONFIGS;
     return ROLE_CONFIGS[roleKey]?.description || "User role";
+  };
+
+  const formatDate = (date: Date | null): string => {
+    if (!date) return "N/A";
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatActivityTimestamp = (timestamp: any): string => {
+    if (!timestamp) return "N/A";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   // ═══════════════════════════════════════════════════════════════
@@ -610,6 +825,116 @@ const AddEditUser: React.FC = () => {
         isVisible={toast.isVisible}
         onClose={hideToast}
       />
+
+      {/* ✅ NEW: Subscription Extension Modal */}
+      {showSubscriptionModal && (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowSubscriptionModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-slate-800"
+            >
+              <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
+                <h3 className="text-2xl font-black">Extend Subscription</h3>
+                <p className="text-white/90 mt-1">Add more months to subscription</p>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Current End Date
+                  </label>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                    <p className="text-slate-800 dark:text-white font-bold">
+                      {formatDate(formData.subscriptionEndDate)}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Extend by (months)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setExtendMonths(Math.max(1, extendMonths - 1))}
+                      className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-xl flex items-center justify-center"
+                    >
+                      <Minus size={20} />
+                    </motion.button>
+                    <input
+                      type="number"
+                      value={extendMonths}
+                      onChange={(e) => setExtendMonths(parseInt(e.target.value) || 1)}
+                      min="1"
+                      max="12"
+                      className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-bold text-xl text-slate-800 dark:text-white"
+                    />
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setExtendMonths(Math.min(12, extendMonths + 1))}
+                      className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-xl flex items-center justify-center"
+                    >
+                      <Plus size={20} />
+                    </motion.button>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    {[1, 3, 6, 12].map((months) => (
+                      <button
+                        key={months}
+                        onClick={() => setExtendMonths(months)}
+                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${extendMonths === months
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                          }`}
+                      >
+                        {months}M
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
+                  <p className="text-sm text-purple-600 dark:text-purple-400">
+                    New end date will be: <strong>{formatDate(new Date(new Date(formData.subscriptionEndDate || new Date()).setMonth(new Date(formData.subscriptionEndDate || new Date()).getMonth() + extendMonths)))}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowSubscriptionModal(false)}
+                  className="flex-1 px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleExtendSubscription}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl font-bold"
+                >
+                  Extend
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      )}
 
       <div className="space-y-6 w-full">
         {/* HEADER */}
@@ -652,17 +977,120 @@ const AddEditUser: React.FC = () => {
                   <span className="px-4 py-2 bg-white/20 backdrop-blur-xl rounded-xl font-bold">
                     ID: {userId?.slice(0, 8)}...
                   </span>
+                  {/* ✅ NEW: Activity Log Button */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowActivityLog(!showActivityLog)}
+                    className="px-4 py-2 bg-white/20 backdrop-blur-xl rounded-xl font-bold flex items-center gap-2"
+                  >
+                    <History size={20} />
+                    Activity
+                  </motion.button>
                 </div>
               )}
             </div>
           </div>
         </motion.div>
 
+        {/* ✅ NEW: ACTIVITY LOG (Edit Mode Only) */}
+        {isEditMode && showActivityLog && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-6"
+          >
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+              <History size={20} className="text-purple-500" />
+              Activity Log
+            </h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {activityLog.length > 0 ? (
+                activityLog.map((log, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-start gap-3"
+                  >
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mt-2" />
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-800 dark:text-white">{log.action}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{log.details}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        {formatActivityTimestamp(log.timestamp)} • by {log.performedBy}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  No activity log found
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ✅ NEW: QUICK ACTIONS (Edit Mode Only) */}
+        {isEditMode && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg"
+          >
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Zap size={20} />
+              Quick Actions
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSubscriptionModal(true)}
+                className="px-4 py-3 bg-white/20 backdrop-blur-xl rounded-xl font-bold hover:bg-white/30 transition-all flex items-center justify-center gap-2"
+              >
+                <Calendar size={18} />
+                Extend Sub
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleGrantFreeTrial}
+                className="px-4 py-3 bg-white/20 backdrop-blur-xl rounded-xl font-bold hover:bg-white/30 transition-all flex items-center justify-center gap-2"
+              >
+                <Gift size={18} />
+                Free Trial
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleAddRewardPoints(100)}
+                className="px-4 py-3 bg-white/20 backdrop-blur-xl rounded-xl font-bold hover:bg-white/30 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={18} />
+                +100 Points
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleResetPassword}
+                className="px-4 py-3 bg-white/20 backdrop-blur-xl rounded-xl font-bold hover:bg-white/30 transition-all flex items-center justify-center gap-2"
+              >
+                <Send size={18} />
+                Reset Pass
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
         {/* FORM */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: isEditMode ? 0.2 : 0.1 }}
           className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-8"
         >
           <form onSubmit={handleSubmit} className="space-y-8">
@@ -685,11 +1113,10 @@ const AddEditUser: React.FC = () => {
                     value={formData.displayName}
                     onChange={handleInputChange}
                     placeholder="John Doe"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.displayName
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.displayName
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.displayName && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -711,13 +1138,11 @@ const AddEditUser: React.FC = () => {
                     onChange={handleInputChange}
                     placeholder="john@example.com"
                     disabled={isEditMode}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.email
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white ${
-                      isEditMode ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.email
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white ${isEditMode ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                   />
                   {errors.email && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -738,11 +1163,10 @@ const AddEditUser: React.FC = () => {
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
                     placeholder="+91 1234567890"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.phoneNumber
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.phoneNumber
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.phoneNumber && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -769,11 +1193,10 @@ const AddEditUser: React.FC = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder={isEditMode ? "••••••••" : "Min 6 characters"}
-                      className={`w-full px-4 py-3 pr-12 bg-slate-50 dark:bg-slate-800 border ${
-                        errors.password
-                          ? "border-red-500"
-                          : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                      className={`w-full px-4 py-3 pr-12 bg-slate-50 dark:bg-slate-800 border ${errors.password
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                     />
                     <button
                       type="button"
@@ -895,7 +1318,7 @@ const AddEditUser: React.FC = () => {
                   >
                     {plans.map((plan) => (
                       <option key={plan.id} value={plan.id}>
-                        {plan.name}
+                        {plan.name} {plan.price > 0 && `- ₹${plan.price}`}
                       </option>
                     ))}
                   </select>
@@ -918,6 +1341,41 @@ const AddEditUser: React.FC = () => {
                     <option value="expired">Expired</option>
                   </select>
                 </div>
+
+                {/* ✅ NEW: Subscription End Date */}
+                {formData.isPremium && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      Subscription End Date
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="date"
+                        name="subscriptionEndDate"
+                        value={formData.subscriptionEndDate ? new Date(formData.subscriptionEndDate).toISOString().split('T')[0] : ''}
+                        onChange={handleInputChange}
+                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                      {isEditMode && (
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setShowSubscriptionModal(true)}
+                          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl font-bold flex items-center gap-2"
+                        >
+                          <Plus size={18} />
+                          Extend
+                        </motion.button>
+                      )}
+                    </div>
+                    {formData.subscriptionEndDate && (
+                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                        Expires: {formatDate(formData.subscriptionEndDate)}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -941,11 +1399,10 @@ const AddEditUser: React.FC = () => {
                     onChange={handleInputChange}
                     min="1"
                     max="10"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.maxDevices
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.maxDevices
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.maxDevices && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -967,11 +1424,10 @@ const AddEditUser: React.FC = () => {
                     onChange={handleInputChange}
                     min="1"
                     max="10"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.maxProfiles
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.maxProfiles
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.maxProfiles && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -986,18 +1442,31 @@ const AddEditUser: React.FC = () => {
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                     Reward Points
                   </label>
-                  <input
-                    type="number"
-                    name="rewardPoints"
-                    value={formData.rewardPoints}
-                    onChange={handleInputChange}
-                    min="0"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.rewardPoints
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      name="rewardPoints"
+                      value={formData.rewardPoints}
+                      onChange={handleInputChange}
+                      min="0"
+                      className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.rewardPoints
                         ? "border-red-500"
                         : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
-                  />
+                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    />
+                    {isEditMode && (
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleAddRewardPoints(50)}
+                        className="px-3 py-3 bg-green-500 text-white rounded-xl"
+                        title="Add 50 points"
+                      >
+                        <Plus size={20} />
+                      </motion.button>
+                    )}
+                  </div>
                   {errors.rewardPoints && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
                       <AlertCircle size={14} />
@@ -1016,7 +1485,6 @@ const AddEditUser: React.FC = () => {
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Email Verified */}
                 <label className="flex items-center gap-3 cursor-pointer p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
                   <input
                     type="checkbox"
@@ -1035,7 +1503,6 @@ const AddEditUser: React.FC = () => {
                   </div>
                 </label>
 
-                {/* Phone Verified */}
                 <label className="flex items-center gap-3 cursor-pointer p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
                   <input
                     type="checkbox"
@@ -1054,7 +1521,6 @@ const AddEditUser: React.FC = () => {
                   </div>
                 </label>
 
-                {/* KYC Verified */}
                 <label className="flex items-center gap-3 cursor-pointer p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
                   <input
                     type="checkbox"
@@ -1073,7 +1539,6 @@ const AddEditUser: React.FC = () => {
                   </div>
                 </label>
 
-                {/* 2FA Enabled */}
                 <label className="flex items-center gap-3 cursor-pointer p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
                   <input
                     type="checkbox"
@@ -1087,40 +1552,49 @@ const AddEditUser: React.FC = () => {
                       Two-Factor Authentication
                     </p>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Enable 2FA for this user
+                      Enable 2FA for this account
                     </p>
                   </div>
                 </label>
               </div>
             </div>
 
-            {/* FORM ACTIONS */}
-            <div className="flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-800">
+            {/* SUBMIT BUTTONS */}
+            <div className="flex items-center gap-4 pt-6 border-t border-slate-200 dark:border-slate-800">
               <motion.button
                 type="button"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => navigate("/admin/users/all")}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                disabled={loading}
+                className="px-8 py-4 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all disabled:opacity-50"
               >
                 Cancel
               </motion.button>
 
               <motion.button
                 type="submit"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 disabled={loading}
-                className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="flex-1 px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-bold hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
               >
                 {loading ? (
                   <>
-                    <Loader size={20} className="animate-spin" />
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{
+                        duration: 1,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                      className="w-6 h-6 border-2 border-white border-t-transparent rounded-full"
+                    />
                     {isEditMode ? "Updating..." : "Creating..."}
                   </>
                 ) : (
                   <>
-                    <Save size={20} />
+                    <Save size={24} />
                     {isEditMode ? "Update User" : "Create User"}
                   </>
                 )}
