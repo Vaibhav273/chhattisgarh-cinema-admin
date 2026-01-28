@@ -75,6 +75,22 @@ interface RecentActivity {
     color: string;
 }
 
+interface SystemLog {
+    id: string;
+    action: string;
+    module: string;
+    subModule?: string;
+    performedBy: {
+        uid: string;
+        email: string;
+        name: string;
+        role: string;
+    };
+    details: any;
+    timestamp: Timestamp;
+    status: string;
+}
+
 interface DailyStats {
     date: string;
     revenue: number;
@@ -117,6 +133,10 @@ const AdminDashboard: React.FC = () => {
     const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
     const [weeklyRevenue, setWeeklyRevenue] = useState<DailyStats[]>([]);
 
+    // 🔥 ADD THIS STATE
+    const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+
     // ═══════════════════════════════════════════════════════════════
     // 🔄 FETCH DASHBOARD DATA
     // ═══════════════════════════════════════════════════════════════
@@ -135,6 +155,7 @@ const AdminDashboard: React.FC = () => {
                 fetchRecentActivities(),
                 fetchWeeklyRevenue(),
                 fetchAnalytics(),
+                fetchSystemLogs(),
             ]);
 
             setLoading(false);
@@ -142,6 +163,75 @@ const AdminDashboard: React.FC = () => {
             console.error('Error fetching dashboard data:', error);
             setLoading(false);
         }
+    };
+
+    const fetchSystemLogs = async () => {
+        try {
+            setLoadingLogs(true);
+            console.log("📋 Fetching system logs...");
+
+            const logsQuery = query(
+                collection(db, "systemLogs"),
+                orderBy("timestamp", "desc"),
+                limit(10)
+            );
+
+            const logsSnapshot = await getDocs(logsQuery);
+
+            const logs: SystemLog[] = logsSnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            })) as SystemLog[];
+
+            console.log("✅ System logs fetched:", logs.length);
+            setSystemLogs(logs);
+            setLoadingLogs(false);
+        } catch (error) {
+            console.error("❌ Error fetching system logs:", error);
+            setLoadingLogs(false);
+            setSystemLogs([]);
+        }
+    };
+
+    const getLogIcon = (action: string) => {
+        if (action.includes("created") || action.includes("sent")) return "✨";
+        if (action.includes("updated")) return "📝";
+        if (action.includes("deleted")) return "🗑️";
+        if (action.includes("login")) return "🔐";
+        if (action.includes("logout")) return "👋";
+        return "📋";
+    };
+
+    const getLogColor = (action: string) => {
+        if (action.includes("created")) return "text-green-500 bg-green-100 dark:bg-green-900/30";
+        if (action.includes("updated")) return "text-blue-500 bg-blue-100 dark:bg-blue-900/30";
+        if (action.includes("deleted")) return "text-red-500 bg-red-100 dark:bg-red-900/30";
+        if (action.includes("sent")) return "text-purple-500 bg-purple-100 dark:bg-purple-900/30";
+        if (action.includes("login")) return "text-cyan-500 bg-cyan-100 dark:bg-cyan-900/30";
+        return "text-slate-500 bg-slate-100 dark:bg-slate-800/50";
+    };
+
+    const formatLogAction = (action: string) => {
+        return action
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase());
+    };
+
+    const formatLogTime = (timestamp: any) => {
+        if (!timestamp) return "Just now";
+
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return "Just now";
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -815,7 +905,10 @@ const AdminDashboard: React.FC = () => {
             {/* ═══════════════════════════════════════════════════════════ */}
             {/* 🔥 TOP CONTENT & RECENT ACTIVITIES */}
             {/* ═══════════════════════════════════════════════════════════ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* ═══════════════════════════════════════════════════════════ */}
+            {/* 🔥 TOP CONTENT, RECENT ACTIVITIES & SYSTEM LOGS */}
+            {/* ═══════════════════════════════════════════════════════════ */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Top Content */}
                 <motion.div
                     variants={itemVariants}
@@ -824,7 +917,7 @@ const AdminDashboard: React.FC = () => {
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <Zap className="text-orange-500" size={24} />
-                            Top Performing Content
+                            Top Content
                         </h3>
                         <button className="text-orange-500 font-semibold text-sm hover:text-orange-600 transition-colors">
                             View All →
@@ -879,12 +972,12 @@ const AdminDashboard: React.FC = () => {
                     ) : (
                         <div className="text-center py-12">
                             <Film className="mx-auto text-slate-300 dark:text-slate-700 mb-4" size={48} />
-                            <p className="text-slate-500">No content data available yet</p>
+                            <p className="text-slate-500">No content data available</p>
                         </div>
                     )}
                 </motion.div>
 
-                {/* Recent Activities */}
+                {/* Recent Activities (User Actions) */}
                 <motion.div
                     variants={itemVariants}
                     className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
@@ -892,37 +985,42 @@ const AdminDashboard: React.FC = () => {
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <Activity className="text-blue-500" size={24} />
-                            Recent Activities
+                            User Activity
                         </h3>
-                        <button className="text-blue-500 font-semibold text-sm hover:text-blue-600 transition-colors">
-                            View All →
+                        <button
+                            onClick={fetchRecentActivities}
+                            className="text-blue-500 font-semibold text-sm hover:text-blue-600 transition-colors"
+                        >
+                            🔄
                         </button>
                     </div>
 
                     {recentActivities.length > 0 ? (
-                        <div className="space-y-4">
-                            {recentActivities.slice(0, 8).map((activity, index) => {
+                        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                            {recentActivities.map((activity, index) => {
                                 const Icon = activity.icon;
                                 return (
                                     <motion.div
                                         key={activity.id}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.05 }}
-                                        className="flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                        className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                                     >
-                                        <div className={`w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 ${activity.color}`}>
-                                            <Icon size={20} />
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${activity.color}`}>
+                                            <Icon size={20} className="text-white" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-slate-800 dark:text-white">
-                                                <span className="font-bold">{activity.user}</span>{' '}
-                                                <span className="text-slate-600 dark:text-slate-400">{activity.action}</span>
+                                            <p className="text-sm text-slate-800 dark:text-white font-semibold truncate">
+                                                {activity.user}
                                             </p>
-                                            <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
-                                                <Clock size={14} />
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                                {activity.action}
+                                            </p>
+                                            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                                <Clock size={12} />
                                                 {activity.time}
-                                            </div>
+                                            </p>
                                         </div>
                                     </motion.div>
                                 );
@@ -932,6 +1030,84 @@ const AdminDashboard: React.FC = () => {
                         <div className="text-center py-12">
                             <Activity className="mx-auto text-slate-300 dark:text-slate-700 mb-4" size={48} />
                             <p className="text-slate-500">No recent activities</p>
+                        </div>
+                    )}
+                </motion.div>
+
+                {/* System Logs (Admin Actions) */}
+                <motion.div
+                    variants={itemVariants}
+                    className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
+                >
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <Activity className="text-indigo-500" size={24} />
+                            System Logs
+                        </h3>
+                        <button
+                            onClick={fetchSystemLogs}
+                            className="text-indigo-500 font-semibold text-sm hover:text-indigo-600 transition-colors"
+                        >
+                            🔄
+                        </button>
+                    </div>
+
+                    {loadingLogs ? (
+                        <div className="flex items-center justify-center py-12">
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full"
+                            />
+                        </div>
+                    ) : systemLogs.length > 0 ? (
+                        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                            {systemLogs.map((log, index) => (
+                                <motion.div
+                                    key={log.id}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
+                                >
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${getLogColor(log.action)}`}>
+                                        {getLogIcon(log.action)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-slate-800 dark:text-white text-sm truncate">
+                                                {log.performedBy.name}
+                                            </span>
+                                            <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full">
+                                                {log.performedBy.role}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                            {formatLogAction(log.action)}
+                                        </p>
+                                        {log.details?.title && (
+                                            <p className="text-xs text-slate-800 dark:text-white font-semibold mt-1 truncate">
+                                                {log.details.title}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                            <Clock size={12} />
+                                            {formatLogTime(log.timestamp)}
+                                        </p>
+                                    </div>
+                                    <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${log.status === "success"
+                                        ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                                        : "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                                        }`}>
+                                        {log.status}
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12">
+                            <Activity className="mx-auto text-slate-300 dark:text-slate-700 mb-4" size={48} />
+                            <p className="text-slate-500">No system logs</p>
                         </div>
                     )}
                 </motion.div>

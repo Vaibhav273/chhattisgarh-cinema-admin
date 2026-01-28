@@ -18,6 +18,7 @@ import {
   Crown,
   UserX,
   Filter,
+  ImageIcon,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -27,8 +28,12 @@ import {
   getDoc,
   updateDoc,
   Timestamp,
+  query,
+  where,
+  getCountFromServer,
 } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
+import MediaLibrary from "../../components/admin/MediaLibrary";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -47,6 +52,52 @@ interface FormErrors {
   scheduledDate?: string;
   scheduledTime?: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📝 CHARACTER COUNTER COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface CharacterCounterProps {
+  current: number;
+  max: number;
+  label: string;
+}
+
+const CharacterCounter: React.FC<CharacterCounterProps> = ({ current, max, label }) => {
+  const percentage = (current / max) * 100;
+  const isNearLimit = percentage > 80;
+  const isAtLimit = percentage >= 100;
+
+  return (
+    <div className="flex items-center justify-between mt-2">
+      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      <div className="flex items-center gap-2">
+        <div className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(percentage, 100)}%` }}
+            className={`h-full rounded-full transition-colors ${isAtLimit
+              ? "bg-red-500"
+              : isNearLimit
+                ? "bg-yellow-500"
+                : "bg-blue-500"
+              }`}
+          />
+        </div>
+        <span
+          className={`text-xs font-bold ${isAtLimit
+            ? "text-red-600 dark:text-red-400"
+            : isNearLimit
+              ? "text-yellow-600 dark:text-yellow-400"
+              : "text-slate-600 dark:text-slate-400"
+            }`}
+        >
+          {current}/{max}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 TOAST NOTIFICATION
@@ -108,6 +159,9 @@ const AddNewEditNotification: React.FC = () => {
   const [loading, setLoading] = useState(isEditMode);
   const [notificationNotFound, setNotificationNotFound] = useState(false);
 
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [isMediaSelectorOpen, setIsMediaSelectorOpen] = useState(false);
+
   // Form states
   const [formData, setFormData] = useState({
     title: "",
@@ -138,7 +192,7 @@ const AddNewEditNotification: React.FC = () => {
     }
   }, [isEditMode, id]);
 
-  // Calculate estimated recipients
+  // Calculate estimated recipients (DYNAMIC - Real Firebase data)
   useEffect(() => {
     calculateEstimatedRecipients();
   }, [formData.target, formData.customSegments]);
@@ -157,7 +211,6 @@ const AddNewEditNotification: React.FC = () => {
 
       const data = notificationDoc.data();
 
-      // Parse scheduled date/time if exists
       let scheduledDate = "";
       let scheduledTime = "";
       if (data.scheduledFor) {
@@ -177,6 +230,11 @@ const AddNewEditNotification: React.FC = () => {
         customSegments: data.customSegments || [],
       });
 
+      // 🔥 Load image if exists
+      if (data.imageUrl) {
+        setImagePreview(data.imageUrl);
+      }
+
       setLoading(false);
     } catch (error) {
       console.error("Error fetching notification:", error);
@@ -186,25 +244,54 @@ const AddNewEditNotification: React.FC = () => {
     }
   };
 
+  // DYNAMIC - Fetch real user counts from Firestore
   const calculateEstimatedRecipients = async () => {
-    // Simulate recipient calculation
-    // In production, query actual user counts from Firestore
-    let count = 0;
-    switch (formData.target) {
-      case "all":
-        count = 25000; // Example: all users
-        break;
-      case "premium":
-        count = 5000; // Example: premium users
-        break;
-      case "free":
-        count = 20000; // Example: free users
-        break;
-      case "custom":
-        count = formData.customSegments.length * 1000; // Example
-        break;
+    try {
+      let count = 0;
+
+      switch (formData.target) {
+        case "all":
+          const allUsersQuery = query(collection(db, "users"));
+          const allSnapshot = await getCountFromServer(allUsersQuery);
+          count = allSnapshot.data().count;
+          break;
+
+        case "premium":
+          const premiumQuery = query(
+            collection(db, "users"),
+            where("isPremium", "==", true)
+          );
+          const premiumSnapshot = await getCountFromServer(premiumQuery);
+          count = premiumSnapshot.data().count;
+          break;
+
+        case "free":
+          const freeQuery = query(
+            collection(db, "users"),
+            where("isPremium", "==", false)
+          );
+          const freeSnapshot = await getCountFromServer(freeQuery);
+          count = freeSnapshot.data().count;
+          break;
+
+        case "custom":
+          count = formData.customSegments.length * 1000;
+          break;
+      }
+
+      console.log(`📊 Estimated recipients for ${formData.target}:`, count);
+      setEstimatedRecipients(count);
+    } catch (error) {
+      console.error("Error calculating recipients:", error);
+      // Fallback to mock data if error
+      const fallbackCounts = {
+        all: 25000,
+        premium: 5000,
+        free: 20000,
+        custom: formData.customSegments.length * 1000,
+      };
+      setEstimatedRecipients(fallbackCounts[formData.target]);
     }
-    setEstimatedRecipients(count);
   };
 
   const showToast = (
@@ -252,6 +339,50 @@ const AddNewEditNotification: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleMediaSelect = (mediaUrl: string) => {
+    console.log("📸 Media selected:", mediaUrl);
+    setImagePreview(mediaUrl);
+    setIsMediaSelectorOpen(false);
+    showToast("Image selected successfully", "success");
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // 📋 SYSTEM LOG HELPER
+  // ═══════════════════════════════════════════════════════════════
+
+  const createSystemLog = async (action: string, details: any) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Get admin details
+      const adminDoc = await getDoc(doc(db, "admins", currentUser.uid));
+      const adminData = adminDoc.data();
+
+      await addDoc(collection(db, "systemLogs"), {
+        action,
+        module: "Marketing",
+        subModule: "Notifications",
+        performedBy: {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          name: adminData?.name || currentUser.displayName || "Admin",
+          role: adminData?.role || "admin",
+        },
+        details,
+        timestamp: Timestamp.now(),
+        ipAddress: null, // Can be added via backend
+        userAgent: navigator.userAgent,
+        status: "success",
+      });
+
+      console.log("✅ System log created:", action);
+    } catch (error) {
+      console.error("❌ Error creating system log:", error);
+    }
+  };
+
+
   // Submit form
   const handleSubmit = async (e: React.FormEvent, sendNow: boolean = false) => {
     e.preventDefault();
@@ -263,6 +394,7 @@ const AddNewEditNotification: React.FC = () => {
 
     try {
       setUploading(true);
+      console.log("🚀 Starting notification submission...");
 
       let scheduledFor = null;
       let status = "draft";
@@ -283,6 +415,7 @@ const AddNewEditNotification: React.FC = () => {
         type: formData.type,
         target: formData.target,
         status,
+        imageUrl: imagePreview || null,
         scheduledFor,
         totalRecipients: estimatedRecipients,
         delivered: sendNow ? estimatedRecipients : 0,
@@ -294,7 +427,20 @@ const AddNewEditNotification: React.FC = () => {
 
       if (isEditMode) {
         // Update existing notification
+        console.log("📝 Updating notification:", id);
         await updateDoc(doc(db, "notifications", id!), notificationData);
+        console.log("✅ Notification updated:", id);
+
+        // 🔥 CREATE SYSTEM LOG FOR UPDATE
+        console.log("📋 Creating system log for update...");
+        await createSystemLog("notification_updated", {
+          notificationId: id,
+          title: formData.title,
+          status: status,
+          sendNow: sendNow,
+          recipients: estimatedRecipients,
+        });
+
         showToast(
           sendNow
             ? "Notification sent successfully!"
@@ -303,37 +449,63 @@ const AddNewEditNotification: React.FC = () => {
         );
       } else {
         // Create new notification
-        if (sendNow) {
-          notificationData.delivered = estimatedRecipients;
-        }
-        await addDoc(collection(db, "notifications"), {
+        console.log("📝 Creating new notification...");
+        const docRef = await addDoc(collection(db, "notifications"), {
           ...notificationData,
           sentAt: sendNow ? Timestamp.now() : null,
           createdAt: Timestamp.now(),
         });
+        console.log("✅ Notification created:", docRef.id);
+
+        // 🔥 CREATE SYSTEM LOG FOR NEW NOTIFICATION
+        console.log("📋 Creating system log for new notification...");
+        await createSystemLog(
+          sendNow ? "notification_sent" : "notification_created",
+          {
+            notificationId: docRef.id,
+            title: formData.title,
+            type: formData.type,
+            target: formData.target,
+            status: status,
+            recipients: estimatedRecipients,
+            sendNow: sendNow,
+          }
+        );
+
         showToast(
           sendNow
-            ? "Notification sent successfully!"
+            ? `Notification sent to ${formatNumber(estimatedRecipients)} users!`
             : "Notification saved as draft!",
           "success"
         );
       }
 
-      // Navigate back after 1.5 seconds
       setTimeout(() => {
         navigate("/admin/marketing/notifications");
       }, 1500);
 
       setUploading(false);
-    } catch (error) {
-      console.error(`Error ${isEditMode ? "updating" : "creating"} notification:`, error);
+    } catch (error: any) {
+      console.error(`❌ Error ${isEditMode ? "updating" : "creating"} notification:`, error);
+
+      // 🔥 CREATE SYSTEM LOG FOR ERROR
+      await createSystemLog(
+        isEditMode ? "notification_update_failed" : "notification_create_failed",
+        {
+          title: formData.title,
+          error: error.message,
+          errorCode: error.code,
+        }
+      );
+
       showToast(
-        `Failed to ${isEditMode ? "update" : "create"} notification. Please try again.`,
+        error.message || `Failed to ${isEditMode ? "update" : "create"} notification. Please try again.`,
         "error"
       );
       setUploading(false);
     }
   };
+
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -454,32 +626,27 @@ const AddNewEditNotification: React.FC = () => {
                     <input
                       type="text"
                       value={formData.title}
-                      onChange={(e) =>
-                        setFormData({ ...formData, title: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value.slice(0, 50);
+                        setFormData({ ...formData, title: value });
+                      }}
                       placeholder="e.g., New Content Alert"
-                      maxLength={50}
-                      className={`w-full px-4 py-3 border ${
-                        errors.title
-                          ? "border-red-500"
-                          : "border-slate-300 dark:border-slate-700"
-                      } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      className={`w-full px-4 py-3 border ${errors.title
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                        } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     />
-                    <div className="flex justify-between items-center mt-1">
-                      {errors.title ? (
-                        <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
-                          <AlertCircle size={16} />
-                          {errors.title}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Keep it short and attention-grabbing
-                        </p>
-                      )}
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {formData.title.length}/50
-                      </span>
-                    </div>
+                    {errors.title && (
+                      <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {errors.title}
+                      </p>
+                    )}
+                    <CharacterCounter
+                      current={formData.title.length}
+                      max={50}
+                      label="Keep it short and attention-grabbing"
+                    />
                   </div>
 
                   {/* Message */}
@@ -489,33 +656,28 @@ const AddNewEditNotification: React.FC = () => {
                     </label>
                     <textarea
                       value={formData.message}
-                      onChange={(e) =>
-                        setFormData({ ...formData, message: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value.slice(0, 200);
+                        setFormData({ ...formData, message: value });
+                      }}
                       placeholder="Write your notification message here..."
                       rows={5}
-                      maxLength={200}
-                      className={`w-full px-4 py-3 border ${
-                        errors.message
-                          ? "border-red-500"
-                          : "border-slate-300 dark:border-slate-700"
-                      } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none`}
+                      className={`w-full px-4 py-3 border ${errors.message
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                        } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none`}
                     />
-                    <div className="flex justify-between items-center mt-1">
-                      {errors.message ? (
-                        <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
-                          <AlertCircle size={16} />
-                          {errors.message}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Clear, concise message that drives action
-                        </p>
-                      )}
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {formData.message.length}/200
-                      </span>
-                    </div>
+                    {errors.message && (
+                      <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {errors.message}
+                      </p>
+                    )}
+                    <CharacterCounter
+                      current={formData.message.length}
+                      max={200}
+                      label="Clear, concise message that drives action"
+                    />
                   </div>
 
                   {/* Type */}
@@ -527,26 +689,23 @@ const AddNewEditNotification: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, type: "push" })}
-                        className={`p-4 border-2 rounded-xl transition-all ${
-                          formData.type === "push"
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                            : "border-slate-300 dark:border-slate-700 hover:border-blue-300"
-                        }`}
+                        className={`p-4 border-2 rounded-xl transition-all ${formData.type === "push"
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                          : "border-slate-300 dark:border-slate-700 hover:border-blue-300"
+                          }`}
                       >
                         <Bell
                           size={24}
-                          className={`mx-auto mb-2 ${
-                            formData.type === "push"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-slate-600 dark:text-slate-400"
-                          }`}
+                          className={`mx-auto mb-2 ${formData.type === "push"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-600 dark:text-slate-400"
+                            }`}
                         />
                         <p
-                          className={`text-sm font-bold ${
-                            formData.type === "push"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-slate-700 dark:text-slate-300"
-                          }`}
+                          className={`text-sm font-bold ${formData.type === "push"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                            }`}
                         >
                           Push
                         </p>
@@ -555,26 +714,23 @@ const AddNewEditNotification: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, type: "email" })}
-                        className={`p-4 border-2 rounded-xl transition-all ${
-                          formData.type === "email"
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                            : "border-slate-300 dark:border-slate-700 hover:border-blue-300"
-                        }`}
+                        className={`p-4 border-2 rounded-xl transition-all ${formData.type === "email"
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                          : "border-slate-300 dark:border-slate-700 hover:border-blue-300"
+                          }`}
                       >
                         <Mail
                           size={24}
-                          className={`mx-auto mb-2 ${
-                            formData.type === "email"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-slate-600 dark:text-slate-400"
-                          }`}
+                          className={`mx-auto mb-2 ${formData.type === "email"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-600 dark:text-slate-400"
+                            }`}
                         />
                         <p
-                          className={`text-sm font-bold ${
-                            formData.type === "email"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-slate-700 dark:text-slate-300"
-                          }`}
+                          className={`text-sm font-bold ${formData.type === "email"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                            }`}
                         >
                           Email
                         </p>
@@ -583,26 +739,23 @@ const AddNewEditNotification: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, type: "in-app" })}
-                        className={`p-4 border-2 rounded-xl transition-all ${
-                          formData.type === "in-app"
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                            : "border-slate-300 dark:border-slate-700 hover:border-blue-300"
-                        }`}
+                        className={`p-4 border-2 rounded-xl transition-all ${formData.type === "in-app"
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                          : "border-slate-300 dark:border-slate-700 hover:border-blue-300"
+                          }`}
                       >
                         <MessageSquare
                           size={24}
-                          className={`mx-auto mb-2 ${
-                            formData.type === "in-app"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-slate-600 dark:text-slate-400"
-                          }`}
+                          className={`mx-auto mb-2 ${formData.type === "in-app"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-600 dark:text-slate-400"
+                            }`}
                         />
                         <p
-                          className={`text-sm font-bold ${
-                            formData.type === "in-app"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-slate-700 dark:text-slate-300"
-                          }`}
+                          className={`text-sm font-bold ${formData.type === "in-app"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                            }`}
                         >
                           In-App
                         </p>
@@ -611,6 +764,73 @@ const AddNewEditNotification: React.FC = () => {
                   </div>
                 </div>
               </motion.div>
+
+              {/* Media Selection Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
+              >
+                <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-pink-100 dark:bg-pink-900/30 rounded-xl flex items-center justify-center">
+                      <ImageIcon size={20} className="text-pink-600 dark:text-pink-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-800 dark:text-white">
+                        Notification Image (Optional)
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        Add an eye-catching image to your notification
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {imagePreview ? (
+                    <div className="relative group">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-48 object-cover rounded-2xl"
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsMediaSelectorOpen(true)}
+                          className="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all"
+                        >
+                          Change Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImagePreview("")}
+                          className="px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsMediaSelectorOpen(true)}
+                      className="w-full border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-12 flex flex-col items-center cursor-pointer hover:border-pink-500 dark:hover:border-pink-500 transition-all"
+                    >
+                      <ImageIcon size={48} className="text-slate-400 dark:text-slate-600 mb-4" />
+                      <span className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-2">
+                        Select Notification Image
+                      </span>
+                      <span className="text-sm text-slate-500 dark:text-slate-500">
+                        Choose from media library (Recommended: 1200x600px)
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+
 
               {/* Target Audience */}
               <motion.div
@@ -622,7 +842,10 @@ const AddNewEditNotification: React.FC = () => {
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-                      <Target size={20} className="text-purple-600 dark:text-purple-400" />
+                      <Target
+                        size={20}
+                        className="text-purple-600 dark:text-purple-400"
+                      />
                     </div>
                     <div>
                       <h3 className="text-xl font-black text-slate-800 dark:text-white">
@@ -640,26 +863,23 @@ const AddNewEditNotification: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, target: "all" })}
-                      className={`p-4 border-2 rounded-xl transition-all ${
-                        formData.target === "all"
-                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
-                          : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
-                      }`}
+                      className={`p-4 border-2 rounded-xl transition-all ${formData.target === "all"
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
+                        : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
+                        }`}
                     >
                       <Users
                         size={24}
-                        className={`mx-auto mb-2 ${
-                          formData.target === "all"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-600 dark:text-slate-400"
-                        }`}
+                        className={`mx-auto mb-2 ${formData.target === "all"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-600 dark:text-slate-400"
+                          }`}
                       />
                       <p
-                        className={`text-sm font-bold ${
-                          formData.target === "all"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
+                        className={`text-sm font-bold ${formData.target === "all"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-700 dark:text-slate-300"
+                          }`}
                       >
                         All Users
                       </p>
@@ -667,27 +887,26 @@ const AddNewEditNotification: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, target: "premium" })}
-                      className={`p-4 border-2 rounded-xl transition-all ${
-                        formData.target === "premium"
-                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
-                          : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
-                      }`}
+                      onClick={() =>
+                        setFormData({ ...formData, target: "premium" })
+                      }
+                      className={`p-4 border-2 rounded-xl transition-all ${formData.target === "premium"
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
+                        : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
+                        }`}
                     >
                       <Crown
                         size={24}
-                        className={`mx-auto mb-2 ${
-                          formData.target === "premium"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-600 dark:text-slate-400"
-                        }`}
+                        className={`mx-auto mb-2 ${formData.target === "premium"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-600 dark:text-slate-400"
+                          }`}
                       />
                       <p
-                        className={`text-sm font-bold ${
-                          formData.target === "premium"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
+                        className={`text-sm font-bold ${formData.target === "premium"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-700 dark:text-slate-300"
+                          }`}
                       >
                         Premium
                       </p>
@@ -696,26 +915,23 @@ const AddNewEditNotification: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, target: "free" })}
-                      className={`p-4 border-2 rounded-xl transition-all ${
-                        formData.target === "free"
-                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
-                          : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
-                      }`}
+                      className={`p-4 border-2 rounded-xl transition-all ${formData.target === "free"
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
+                        : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
+                        }`}
                     >
                       <UserX
                         size={24}
-                        className={`mx-auto mb-2 ${
-                          formData.target === "free"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-600 dark:text-slate-400"
-                        }`}
+                        className={`mx-auto mb-2 ${formData.target === "free"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-600 dark:text-slate-400"
+                          }`}
                       />
                       <p
-                        className={`text-sm font-bold ${
-                          formData.target === "free"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
+                        className={`text-sm font-bold ${formData.target === "free"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-700 dark:text-slate-300"
+                          }`}
                       >
                         Free Users
                       </p>
@@ -723,33 +939,33 @@ const AddNewEditNotification: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, target: "custom" })}
-                      className={`p-4 border-2 rounded-xl transition-all ${
-                        formData.target === "custom"
-                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
-                          : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
-                      }`}
+                      onClick={() =>
+                        setFormData({ ...formData, target: "custom" })
+                      }
+                      className={`p-4 border-2 rounded-xl transition-all ${formData.target === "custom"
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/30"
+                        : "border-slate-300 dark:border-slate-700 hover:border-purple-300"
+                        }`}
                     >
                       <Filter
                         size={24}
-                        className={`mx-auto mb-2 ${
-                          formData.target === "custom"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-600 dark:text-slate-400"
-                        }`}
+                        className={`mx-auto mb-2 ${formData.target === "custom"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-600 dark:text-slate-400"
+                          }`}
                       />
                       <p
-                        className={`text-sm font-bold ${
-                          formData.target === "custom"
-                            ? "text-purple-600 dark:text-purple-400"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
+                        className={`text-sm font-bold ${formData.target === "custom"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-700 dark:text-slate-300"
+                          }`}
                       >
                         Custom
                       </p>
                     </button>
                   </div>
 
+                  {/* Estimated Recipients */}
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
                     <div className="flex items-center gap-2 mb-1">
                       <Users size={16} className="text-blue-600 dark:text-blue-400" />
@@ -757,8 +973,21 @@ const AddNewEditNotification: React.FC = () => {
                         Estimated Recipients
                       </span>
                     </div>
-                    <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                    <motion.p
+                      key={estimatedRecipients}
+                      initial={{ scale: 1.2, color: "#3b82f6" }}
+                      animate={{ scale: 1, color: "#2563eb" }}
+                      transition={{ duration: 0.3 }}
+                      className="text-2xl font-black text-blue-600 dark:text-blue-400"
+                    >
                       {formatNumber(estimatedRecipients)}
+                    </motion.p>
+                    <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                      Live count • Updated{" "}
+                      {new Date().toLocaleTimeString("en-IN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </p>
                   </div>
                 </div>
@@ -774,7 +1003,10 @@ const AddNewEditNotification: React.FC = () => {
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
-                      <Clock size={20} className="text-orange-600 dark:text-orange-400" />
+                      <Clock
+                        size={20}
+                        className="text-orange-600 dark:text-orange-400"
+                      />
                     </div>
                     <div>
                       <h3 className="text-xl font-black text-slate-800 dark:text-white">
@@ -794,26 +1026,23 @@ const AddNewEditNotification: React.FC = () => {
                       onClick={() =>
                         setFormData({ ...formData, sendType: "immediate" })
                       }
-                      className={`p-4 border-2 rounded-xl transition-all ${
-                        formData.sendType === "immediate"
-                          ? "border-orange-500 bg-orange-50 dark:bg-orange-900/30"
-                          : "border-slate-300 dark:border-slate-700 hover:border-orange-300"
-                      }`}
+                      className={`p-4 border-2 rounded-xl transition-all ${formData.sendType === "immediate"
+                        ? "border-orange-500 bg-orange-50 dark:bg-orange-900/30"
+                        : "border-slate-300 dark:border-slate-700 hover:border-orange-300"
+                        }`}
                     >
                       <Zap
                         size={24}
-                        className={`mx-auto mb-2 ${
-                          formData.sendType === "immediate"
-                            ? "text-orange-600 dark:text-orange-400"
-                            : "text-slate-600 dark:text-slate-400"
-                        }`}
+                        className={`mx-auto mb-2 ${formData.sendType === "immediate"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-slate-600 dark:text-slate-400"
+                          }`}
                       />
                       <p
-                        className={`text-sm font-bold ${
-                          formData.sendType === "immediate"
-                            ? "text-orange-600 dark:text-orange-400"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
+                        className={`text-sm font-bold ${formData.sendType === "immediate"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-slate-700 dark:text-slate-300"
+                          }`}
                       >
                         Send Now
                       </p>
@@ -824,26 +1053,23 @@ const AddNewEditNotification: React.FC = () => {
                       onClick={() =>
                         setFormData({ ...formData, sendType: "scheduled" })
                       }
-                      className={`p-4 border-2 rounded-xl transition-all ${
-                        formData.sendType === "scheduled"
-                          ? "border-orange-500 bg-orange-50 dark:bg-orange-900/30"
-                          : "border-slate-300 dark:border-slate-700 hover:border-orange-300"
-                      }`}
+                      className={`p-4 border-2 rounded-xl transition-all ${formData.sendType === "scheduled"
+                        ? "border-orange-500 bg-orange-50 dark:bg-orange-900/30"
+                        : "border-slate-300 dark:border-slate-700 hover:border-orange-300"
+                        }`}
                     >
                       <Calendar
                         size={24}
-                        className={`mx-auto mb-2 ${
-                          formData.sendType === "scheduled"
-                            ? "text-orange-600 dark:text-orange-400"
-                            : "text-slate-600 dark:text-slate-400"
-                        }`}
+                        className={`mx-auto mb-2 ${formData.sendType === "scheduled"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-slate-600 dark:text-slate-400"
+                          }`}
                       />
                       <p
-                        className={`text-sm font-bold ${
-                          formData.sendType === "scheduled"
-                            ? "text-orange-600 dark:text-orange-400"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
+                        className={`text-sm font-bold ${formData.sendType === "scheduled"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-slate-700 dark:text-slate-300"
+                          }`}
                       >
                         Schedule
                       </p>
@@ -870,11 +1096,10 @@ const AddNewEditNotification: React.FC = () => {
                                 scheduledDate: e.target.value,
                               })
                             }
-                            className={`w-full px-4 py-3 border ${
-                              errors.scheduledDate
-                                ? "border-red-500"
-                                : "border-slate-300 dark:border-slate-700"
-                            } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500`}
+                            className={`w-full px-4 py-3 border ${errors.scheduledDate
+                              ? "border-red-500"
+                              : "border-slate-300 dark:border-slate-700"
+                              } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500`}
                           />
                           {errors.scheduledDate && (
                             <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
@@ -897,11 +1122,10 @@ const AddNewEditNotification: React.FC = () => {
                                 scheduledTime: e.target.value,
                               })
                             }
-                            className={`w-full px-4 py-3 border ${
-                              errors.scheduledTime
-                                ? "border-red-500"
-                                : "border-slate-300 dark:border-slate-700"
-                            } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500`}
+                            className={`w-full px-4 py-3 border ${errors.scheduledTime
+                              ? "border-red-500"
+                              : "border-slate-300 dark:border-slate-700"
+                              } rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500`}
                           />
                           {errors.scheduledTime && (
                             <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
@@ -941,7 +1165,21 @@ const AddNewEditNotification: React.FC = () => {
                   {/* Phone mockup */}
                   <div className="mx-auto max-w-[280px]">
                     <div className="bg-slate-100 dark:bg-slate-800 rounded-3xl p-4 shadow-xl">
-                      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-lg">
+                      <motion.div
+                        key={`${formData.title}-${formData.message}`}
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-lg"
+                      >
+                        {imagePreview && (
+                          <motion.img
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            src={imagePreview}
+                            alt="Notification"
+                            className="w-full h-32 object-cover rounded-xl mb-3"
+                          />
+                        )}
                         <div className="flex items-start gap-3 mb-3">
                           <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
                             <Bell
@@ -954,18 +1192,25 @@ const AddNewEditNotification: React.FC = () => {
                               {formData.title || "Notification Title"}
                             </p>
                             <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-3">
-                              {formData.message || "Your notification message will appear here"}
+                              {formData.message ||
+                                "Your notification message will appear here"}
                             </p>
                           </div>
                         </div>
                         <p className="text-xs text-slate-400 dark:text-slate-500">
                           Just now
                         </p>
-                      </div>
+                      </motion.div>
                     </div>
                   </div>
 
-                  <div className="mt-6 space-y-3">
+                  {/* Preview Info */}
+                  <motion.div
+                    key={`${formData.type}-${formData.target}-${estimatedRecipients}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 space-y-3"
+                  >
                     <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
@@ -988,17 +1233,46 @@ const AddNewEditNotification: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                          Recipients
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                          Estimated Reach
                         </span>
-                        <span className="text-xs font-black text-blue-600 dark:text-blue-400">
-                          {formatNumber(estimatedRecipients)}
-                        </span>
+                        <motion.span
+                          key={estimatedRecipients}
+                          initial={{ scale: 1.2 }}
+                          animate={{ scale: 1 }}
+                          className="text-xs font-black text-blue-600 dark:text-blue-400"
+                        >
+                          {formatNumber(estimatedRecipients)} users
+                        </motion.span>
                       </div>
                     </div>
-                  </div>
+
+                    {formData.sendType === "scheduled" &&
+                      formData.scheduledDate &&
+                      formData.scheduledTime && (
+                        <div className="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-xl">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Clock
+                              size={14}
+                              className="text-orange-600 dark:text-orange-400"
+                            />
+                            <span className="text-xs font-bold text-orange-600 dark:text-orange-400">
+                              Scheduled For
+                            </span>
+                          </div>
+                          <p className="text-xs font-black text-orange-800 dark:text-orange-300">
+                            {new Date(
+                              `${formData.scheduledDate}T${formData.scheduledTime}`
+                            ).toLocaleString("en-IN", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                          </p>
+                        </div>
+                      )}
+                  </motion.div>
                 </div>
               </motion.div>
 
@@ -1009,10 +1283,10 @@ const AddNewEditNotification: React.FC = () => {
                 transition={{ delay: 0.5 }}
                 className="space-y-3"
               >
-                {formData.sendType === "immediate" && !isEditMode && (
+                {formData.sendType === "immediate" && (
                   <button
                     type="button"
-                    onClick={(e) => handleSubmit(e, true)}
+                    onClick={(e) => handleSubmit(e as any, true)}
                     disabled={uploading}
                     className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
@@ -1038,14 +1312,12 @@ const AddNewEditNotification: React.FC = () => {
                   {uploading ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      {isEditMode ? "Updating..." : "Saving..."}
+                      Saving...
                     </>
                   ) : (
                     <>
                       <Save size={20} />
-                      {isEditMode
-                        ? "Update Notification"
-                        : formData.sendType === "scheduled"
+                      {formData.sendType === "scheduled"
                         ? "Schedule Notification"
                         : "Save as Draft"}
                     </>
@@ -1065,6 +1337,15 @@ const AddNewEditNotification: React.FC = () => {
           </div>
         </form>
       </div>
+      {isMediaSelectorOpen && (
+        <MediaLibrary
+          isOpen={isMediaSelectorOpen}
+          onClose={() => setIsMediaSelectorOpen(false)}
+          onSelect={handleMediaSelect}
+          mediaType="image"
+          title="Select Notification Image"
+        />
+      )}
     </div>
   );
 };

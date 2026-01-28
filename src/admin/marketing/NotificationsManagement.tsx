@@ -13,6 +13,7 @@ import {
   Mail,
   MessageSquare,
   Filter,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -24,13 +25,13 @@ import {
   updateDoc,
   Timestamp,
   orderBy,
+  onSnapshot,
+  where,
+  writeBatch,
+  addDoc,
+  getDoc,
 } from "firebase/firestore";
-import { db } from "../../config/firebase";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🎨 INTERFACES & TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
+import { auth, db } from "../../config/firebase";
 interface Notification {
   id: string;
   title: string;
@@ -38,6 +39,7 @@ interface Notification {
   type: "push" | "email" | "in-app";
   target: "all" | "premium" | "free" | "custom";
   status: "draft" | "scheduled" | "sent" | "failed";
+  imageUrl?: string;
   scheduledFor?: Date;
   sentAt?: Date;
   totalRecipients: number;
@@ -115,6 +117,123 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
   );
 };
 
+interface AlertModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  type?: 'danger' | 'warning' | 'success';
+  loading?: boolean;
+}
+
+const AlertModal: React.FC<AlertModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Confirm',
+  type = 'danger',
+  loading = false,
+}) => {
+  if (!isOpen) return null;
+
+  const colors = {
+    danger: {
+      bg: 'from-red-500 to-pink-600',
+      button: 'bg-red-500 hover:bg-red-600',
+    },
+    warning: {
+      bg: 'from-orange-500 to-amber-600',
+      button: 'bg-orange-500 hover:bg-orange-600',
+    },
+    success: {
+      bg: 'from-green-500 to-emerald-600',
+      button: 'bg-green-500 hover:bg-green-600',
+    },
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-slate-800"
+        >
+          {/* Header with Gradient */}
+          <div className={`bg-gradient-to-r ${colors[type].bg} p-6 text-white relative overflow-hidden`}>
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+              transition={{ duration: 20, repeat: Infinity }}
+              className="absolute inset-0 bg-white/10 rounded-full blur-3xl"
+            />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center">
+                <AlertTriangle size={28} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black">{title}</h3>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            <p className="text-slate-600 dark:text-slate-400 text-lg leading-relaxed">
+              {message}
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all disabled:opacity-50"
+            >
+              Cancel
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onConfirm}
+              disabled={loading}
+              className={`flex-1 px-6 py-3 ${colors[type].button} text-white rounded-xl font-bold transition-all shadow-lg disabled:opacity-50 flex items-center justify-center gap-2`}
+            >
+              {loading ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                  />
+                  Processing...
+                </>
+              ) : (
+                confirmText
+              )}
+            </motion.button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📋 MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -128,6 +247,7 @@ const NotificationsManagement: React.FC = () => {
   const [filteredNotifications, setFilteredNotifications] = useState<
     Notification[]
   >([]);
+
   const [stats, setStats] = useState<NotificationStats>({
     totalNotifications: 0,
     sentNotifications: 0,
@@ -155,15 +275,91 @@ const NotificationsManagement: React.FC = () => {
     type: "success" as "success" | "error" | "info" | "warning",
   });
 
-  // Fetch notifications
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
   // Apply filters
   useEffect(() => {
     applyFilters();
   }, [notifications, statusFilter, typeFilter]);
+
+  useEffect(() => {
+    console.log("🔔 Setting up real-time notification listener...");
+
+    const q = query(
+      collection(db, "notifications"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const notificationsList: Notification[] = [];
+        let sentCount = 0;
+        let draftCount = 0;
+        let scheduledCount = 0;
+        let totalRecipients = 0;
+        let totalDelivered = 0;
+        let totalRead = 0;
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const notification: Notification = {
+            id: doc.id,
+            title: data.title || "",
+            message: data.message || "",
+            type: data.type || "push",
+            target: data.target || "all",
+            status: data.status || "draft",
+            scheduledFor: data.scheduledFor?.toDate(),
+            sentAt: data.sentAt?.toDate(),
+            totalRecipients: data.totalRecipients || 0,
+            delivered: data.delivered || 0,
+            read: data.read || 0,
+            clicked: data.clicked || 0,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          notificationsList.push(notification);
+
+          if (notification.status === "sent") sentCount++;
+          else if (notification.status === "draft") draftCount++;
+          else if (notification.status === "scheduled") scheduledCount++;
+
+          totalRecipients += notification.totalRecipients;
+          totalDelivered += notification.delivered;
+          totalRead += notification.read;
+        });
+
+        const averageReadRate =
+          totalDelivered > 0 ? (totalRead / totalDelivered) * 100 : 0;
+
+        setStats({
+          totalNotifications: notificationsList.length,
+          sentNotifications: sentCount,
+          draftNotifications: draftCount,
+          scheduledNotifications: scheduledCount,
+          totalRecipients,
+          totalDelivered,
+          totalRead,
+          averageReadRate,
+        });
+
+        setNotifications(notificationsList);
+        console.log("✅ Notifications updated:", notificationsList.length);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("❌ Error listening to notifications:", error);
+        showToast("Failed to load notifications", "error");
+        setLoading(false);
+      }
+    );
+
+    // Cleanup listener on unmount
+    return () => {
+      console.log("🔌 Cleaning up notification listener");
+      unsubscribe();
+    };
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -252,6 +448,34 @@ const NotificationsManagement: React.FC = () => {
     setFilteredNotifications(filtered);
   };
 
+  useEffect(() => {
+    const checkScheduled = setInterval(() => {
+      const now = new Date();
+      console.log("⏰ Checking for scheduled notifications...");
+
+      notifications.forEach(async (notification) => {
+        if (
+          notification.status === "scheduled" &&
+          notification.scheduledFor &&
+          notification.scheduledFor <= now
+        ) {
+          console.log(`📤 Auto-sending scheduled notification: ${notification.title}`);
+          await handleSend(notification, true);
+        }
+      });
+    }, 60000); // Check every minute
+
+    return () => clearInterval(checkScheduled);
+  }, [notifications]);
+
+  // Alert Modal State
+  const [deleteModal, setDeleteModal] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const showToast = (
     message: string,
     type: "success" | "error" | "info" | "warning",
@@ -263,47 +487,208 @@ const NotificationsManagement: React.FC = () => {
     setToast({ ...toast, isVisible: false });
   };
 
-  const handleDelete = async (notification: Notification) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${notification.title}"?`,
-      )
-    ) {
-      return;
-    }
+  const handleDeleteNotification = async () => {
+    if (!deleteModal) return;
 
     try {
-      await deleteDoc(doc(db, "notifications", notification.id));
+      setIsDeleting(true);
+      console.log("🗑️ Starting delete process for:", deleteModal.id);
+
+      await deleteDoc(doc(db, "notifications", deleteModal.id));
+      console.log("✅ Notification deleted from database");
+
+      // 🔥 CREATE SYSTEM LOG
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const adminDoc = await getDoc(doc(db, "admins", currentUser.uid));
+
+        if (adminDoc.exists()) {
+          const adminData = adminDoc.data();
+
+          await addDoc(collection(db, "systemLogs"), {
+            action: "notification_deleted",
+            module: "Marketing",
+            subModule: "Notifications",
+            performedBy: {
+              uid: currentUser.uid,
+              email: currentUser.email || "",
+              name: adminData?.name || currentUser.displayName || "Admin",
+              role: adminData?.role || "admin",
+            },
+            details: {
+              notificationId: deleteModal.id,
+              title: deleteModal.title,
+              deletedAt: new Date().toISOString(),
+            },
+            timestamp: Timestamp.now(),
+            userAgent: navigator.userAgent,
+            status: "success",
+          });
+
+          console.log("✅✅ System log created!");
+        }
+      }
+
+      setNotifications((prev) =>
+        prev.filter((notification) => notification.id !== deleteModal.id)
+      );
+
       showToast("Notification deleted successfully", "success");
-      fetchNotifications();
-    } catch (error) {
-      console.error("Error deleting notification:", error);
-      showToast("Failed to delete notification", "error");
+      setDeleteModal(null);  // ✅ Close modal
+      setIsDeleting(false);
+
+    } catch (error: any) {
+      console.error("❌ Error deleting notification:", error);
+      showToast(error.message || "Failed to delete notification", "error");
+      setIsDeleting(false);
     }
   };
 
-  const handleSend = async (notification: Notification) => {
+
+  const handleSend = async (notification: Notification, auto: boolean = false) => {
     if (
+      !auto &&
       !window.confirm(
-        `Send notification "${notification.title}" to ${notification.target} users?`,
+        `Send notification "${notification.title}" to ${notification.target} users?`
       )
     ) {
       return;
     }
 
     try {
+      console.log(`📤 Sending notification: ${notification.title}`);
+
+      // Send to actual users
+      const userCount = await sendNotificationToUsers(notification);
+
       // Update status to sent
       await updateDoc(doc(db, "notifications", notification.id), {
         status: "sent",
         sentAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        delivered: userCount,
       });
 
-      showToast("Notification sent successfully", "success");
-      fetchNotifications();
+      showToast(
+        auto
+          ? `Scheduled notification sent to ${userCount} users`
+          : "Notification sent successfully",
+        "success"
+      );
     } catch (error) {
-      console.error("Error sending notification:", error);
+      console.error("❌ Error sending notification:", error);
+
+      // Mark as failed
+      await updateDoc(doc(db, "notifications", notification.id), {
+        status: "failed",
+        updatedAt: Timestamp.now(),
+      });
+
       showToast("Failed to send notification", "error");
+    }
+  };
+
+  const sendNotificationToUsers = async (notification: Notification): Promise<number> => {
+    try {
+      // Get target users based on notification target
+      const usersQuery = getUsersQuery(notification.target);
+      const usersSnapshot = await getDocs(usersQuery);
+
+      if (usersSnapshot.empty) {
+        console.log("⚠️ No users found for target:", notification.target);
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      let count = 0;
+
+      // Create individual user notifications
+      usersSnapshot.forEach((userDoc) => {
+        const userNotifRef = doc(collection(db, "userNotifications"));
+        batch.set(userNotifRef, {
+          userId: userDoc.id,
+          notificationId: notification.id,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          read: false,
+          clicked: false,
+          createdAt: Timestamp.now(),
+        });
+        count++;
+      });
+
+      await batch.commit();
+      console.log(`✅ Sent to ${count} users`);
+      return count;
+    } catch (error) {
+      console.error("❌ Error sending to users:", error);
+      throw error;
+    }
+  };
+
+  // 🔥 ADD: Get users query based on target
+  const getUsersQuery = (target: string) => {
+    let q;
+    switch (target) {
+      case "premium":
+        q = query(collection(db, "users"), where("isPremium", "==", true));
+        break;
+      case "free":
+        q = query(collection(db, "users"), where("isPremium", "==", false));
+        break;
+      case "all":
+      default:
+        q = query(collection(db, "users"));
+        break;
+    }
+    return q;
+  };
+
+  // 🔥 ADD: Mark all as read
+  const handleMarkAsRead = async (notification: Notification) => {
+    try {
+      console.log("📖 Marking notification as read:", notification.id);
+
+      // Update all user notifications for this notification to read
+      const q = query(
+        collection(db, "userNotifications"),
+        where("notificationId", "==", notification.id),
+        where("read", "==", false)
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        showToast("All notifications already marked as read", "info");
+        console.log("ℹ️ No unread notifications found");
+        return;
+      }
+
+      console.log(`📖 Marking ${snapshot.size} user notifications as read...`);
+
+      const batch = writeBatch(db);
+
+      snapshot.forEach((doc) => {
+        batch.update(doc.ref, {
+          read: true,
+          readAt: Timestamp.now()
+        });
+      });
+
+      await batch.commit();
+
+      // Update main notification stats
+      await updateDoc(doc(db, "notifications", notification.id), {
+        read: notification.delivered, // Assume all delivered were read
+        updatedAt: Timestamp.now(),
+      });
+
+      showToast(`✅ Marked ${snapshot.size} notifications as read`, "success");
+      console.log(`✅ Successfully marked ${snapshot.size} as read`);
+    } catch (error: any) {
+      console.error("❌ Error marking as read:", error);
+      showToast(error.message || "Failed to mark as read", "error");
     }
   };
 
@@ -369,6 +754,18 @@ const NotificationsManagement: React.FC = () => {
         onClose={hideToast}
       />
 
+      {/* Delete Confirmation Modal */}
+      <AlertModal
+        isOpen={deleteModal !== null}
+        onClose={() => setDeleteModal(null)}
+        onConfirm={handleDeleteNotification}
+        title="Delete Notification"
+        message={`Are you sure you want to delete "${deleteModal?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        type="danger"
+        loading={isDeleting}
+      />
+
       <div className="space-y-6 w-full">
         {/* HEADER */}
         <motion.div
@@ -392,8 +789,13 @@ const NotificationsManagement: React.FC = () => {
                   <h1 className="text-4xl font-black mb-2">
                     Notifications Management
                   </h1>
-                  <p className="text-white/90 text-lg">
-                    Send and manage push notifications to users
+                  <p className="text-white/90 text-lg flex items-center gap-2">
+                    Send and manage notifications • Real-time updates
+                    <motion.span
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="w-2 h-2 bg-green-400 rounded-full"
+                    />
                   </p>
                 </div>
               </div>
@@ -594,6 +996,12 @@ const NotificationsManagement: React.FC = () => {
             <h3 className="text-xl font-black text-slate-800 dark:text-white">
               All Notifications ({filteredNotifications.length})
             </h3>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <p className="text-sm text-green-600 dark:text-green-400 font-bold">
+                Live Updates
+              </p>
+            </div>
           </div>
 
           {filteredNotifications.length === 0 ? (
@@ -663,13 +1071,24 @@ const NotificationsManagement: React.FC = () => {
                         className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                       >
                         <td className="px-6 py-4">
-                          <div>
-                            <p className="font-bold text-slate-800 dark:text-white">
-                              {notification.title}
-                            </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md truncate">
-                              {notification.message}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            {notification.imageUrl && (
+                              <motion.img
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                src={notification.imageUrl}
+                                alt={notification.title}
+                                className="w-16 h-16 object-cover rounded-xl shadow-lg"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-bold text-slate-800 dark:text-white">
+                                {notification.title}
+                              </p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md truncate">
+                                {notification.message}
+                              </p>
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -741,8 +1160,17 @@ const NotificationsManagement: React.FC = () => {
                                 <Send size={18} />
                               </button>
                             )}
+                            {notification.status === "sent" && (
+                              <button
+                                onClick={() => handleMarkAsRead(notification)}
+                                className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-all"
+                                title="Mark All Read"
+                              >
+                                <CheckCircle size={18} />
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleDelete(notification)}
+                              onClick={() => setDeleteModal({ id: notification.id, title: notification.title })}
                               className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"
                               title="Delete"
                             >
@@ -795,6 +1223,15 @@ const NotificationsManagement: React.FC = () => {
               </div>
 
               <div className="p-6 space-y-6">
+                {selectedNotification.imageUrl && (
+                  <div>
+                    <img
+                      src={selectedNotification.imageUrl}
+                      alt={selectedNotification.title}
+                      className="w-full h-64 object-cover rounded-2xl"
+                    />
+                  </div>
+                )}
                 <div>
                   <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">
                     {selectedNotification.title}
