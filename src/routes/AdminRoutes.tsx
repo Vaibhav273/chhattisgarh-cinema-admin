@@ -85,6 +85,7 @@ import AddEditMovie from "../admin/content/AddEditMovie";
 import AddEditNewBanner from "../admin/marketing/AddEditNewBanner";
 import AddNewEditNotification from "../admin/marketing/AddNewEditNotification";
 import AddNewEditPromotion from "../admin/marketing/AddNewEditPromotion";
+import AnalyticsGenerator from "../admin/analytics/AnalyticsGenerator";
 
 const AdminRoutes: React.FC = () => {
   return (
@@ -357,6 +358,17 @@ const AdminRoutes: React.FC = () => {
             allowedRoles={["analyst", "super_admin"]}
           >
             <PlatformAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/analytics-generator"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["analyst", "super_admin"]}
+          >
+            <AnalyticsGenerator />
           </ProtectedRoute>
         }
       />

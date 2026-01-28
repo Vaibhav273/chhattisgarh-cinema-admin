@@ -566,6 +566,14 @@ const AdminLayout: React.FC = () => {
             show: can(Permission.VIEW_USER_ANALYTICS),
             color: "from-indigo-400 to-purple-500",
         },
+        {
+            icon: BarChart3,
+            label: "Analytics Generator",
+            path: "/admin/analytics/analytics-generator",
+            badge: null,
+            show: can(Permission.VIEW_USER_ANALYTICS),
+            color: "from-indigo-400 to-purple-500",
+        },
 
         // Marketing
         {

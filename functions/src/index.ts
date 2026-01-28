@@ -16,10 +16,27 @@ admin.initializeApp({
 });
 const storage = new Storage();
 
+// ═══════════════════════════════════════════════════════════════
+// 🔥 EXPORT ALL FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
 // Test function
 export const helloWorld = onRequest((request, response) => {
-    response.json({ message: "Encoding service is ready!" });
+    response.json({
+        message: "🔥 Encoding + Analytics service is ready!",
+        functions: [
+            "encodeVideo - Video encoding (on upload)",
+            "scheduledDailyAnalytics - Daily analytics (12:00 AM IST)",
+            "updateContentPerformance - Content stats (Every 6 hours)",
+            "scheduledMonthlyAnalytics - Monthly analytics (1st of month)",
+        ]
+    });
 });
+
+// Analytics Functions (scheduled)
+export { scheduledDailyAnalytics } from "./analytics/dailyAggregation";
+export { updateContentPerformance } from "./analytics/contentPerformance";
+export { scheduledMonthlyAnalytics } from "./analytics/monthlyAggregation";
 
 // Video encoding function
 export const encodeVideo = onObjectFinalized(
@@ -135,3 +152,9 @@ export const encodeVideo = onObjectFinalized(
         }
     }
 );
+
+export {
+    generateDailyAnalyticsManual,
+    generateContentPerformanceManual,
+    generateMonthlyAnalyticsManual
+} from "./analytics/manualTriggers";
