@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🎬 ADD/EDIT MOVIE - PRODUCTION READY WITH CAST/CREW MANAGEMENT
-// Path: src/pages/admin/content/AddEditMovie.tsx
-// ═══════════════════════════════════════════════════════════════════════════════
-
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
@@ -38,6 +33,10 @@ import {
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import type { CastMember, CrewMember, SocialMedia } from "../../types";
+
+import { MediaSelector, type MediaInputMode } from "../../components/admin/MediaSelector";
+import { VideoUploader } from "../../components/admin/VideoUploader";
+import { ImageUploader } from "../../components/admin/ImageUploader";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 TOAST NOTIFICATION
@@ -126,6 +125,8 @@ const CastModal: React.FC<CastModalProps> = ({
     socialMedia: {},
     order: 0,
   });
+
+  const [castImageMode, setCastImageMode] = useState<MediaInputMode>('url');
 
   useEffect(() => {
     if (initialData) {
@@ -297,15 +298,37 @@ const CastModal: React.FC<CastModalProps> = ({
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Profile Image URL
               </label>
-              <input
-                type="text"
-                value={castData.profileImage}
-                onChange={(e) =>
-                  setCastData({ ...castData, profileImage: e.target.value })
-                }
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              <MediaSelector
+                mode={castImageMode}
+                onChange={setCastImageMode}
+                label=""
               />
+
+              {castImageMode === 'upload' ? (
+                <div className="mt-4">
+                  <ImageUploader
+                    onUploadComplete={(url) => {
+                      setCastData({ ...castData, profileImage: url });
+                    }}
+                    currentUrl={castData.profileImage}
+                    folder="cast"
+                    aspectRatio="1:1"
+                    maxSize={3}
+                  />
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <input
+                    type="text"
+                    value={castData.profileImage}
+                    onChange={(e) =>
+                      setCastData({ ...castData, profileImage: e.target.value })
+                    }
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Bio */}
@@ -467,6 +490,8 @@ const CrewModal: React.FC<CrewModalProps> = ({
     order: 0,
   });
 
+  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>('url');
+
   useEffect(() => {
     if (initialData) {
       setCrewData(initialData);
@@ -627,15 +652,37 @@ const CrewModal: React.FC<CrewModalProps> = ({
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Profile Image URL
               </label>
-              <input
-                type="text"
-                value={crewData.profileImage}
-                onChange={(e) =>
-                  setCrewData({ ...crewData, profileImage: e.target.value })
-                }
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <MediaSelector
+                mode={crewImageMode}
+                onChange={setCrewImageMode}
+                label=""
               />
+
+              {crewImageMode === 'upload' ? (
+                <div className="mt-4">
+                  <ImageUploader
+                    onUploadComplete={(url) => {
+                      setCrewData({ ...crewData, profileImage: url });
+                    }}
+                    currentUrl={crewData.profileImage}
+                    folder="crew"
+                    aspectRatio="1:1"
+                    maxSize={3}
+                  />
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <input
+                    type="text"
+                    value={crewData.profileImage}
+                    onChange={(e) =>
+                      setCrewData({ ...crewData, profileImage: e.target.value })
+                    }
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Bio */}
@@ -848,6 +895,12 @@ const AddEditMovie: React.FC = () => {
   const [genreInput, setGenreInput] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [keywordInput, setKeywordInput] = useState("");
+
+  const [videoInputMode, setVideoInputMode] = useState<MediaInputMode>('url');
+  const [thumbnailInputMode, setThumbnailInputMode] = useState<MediaInputMode>('url');
+  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>('url');
+  const [backdropInputMode, setBackdropInputMode] = useState<MediaInputMode>('url');
+  const [trailerInputMode, setTrailerInputMode] = useState<MediaInputMode>('url');
 
   // Fetch movie data for edit mode
   useEffect(() => {
@@ -1516,11 +1569,10 @@ const AddEditMovie: React.FC = () => {
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="Enter movie title"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.title
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.title
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.title && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1556,11 +1608,10 @@ const AddEditMovie: React.FC = () => {
                     onChange={handleInputChange}
                     placeholder="Enter movie description"
                     rows={4}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.description
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.description
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1608,93 +1659,207 @@ const AddEditMovie: React.FC = () => {
             <div>
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
                 <ImageIcon size={24} className="text-purple-500" />
-                Media URLs
+                Media
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Video URL */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Video URL <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="videoUrl"
-                    value={formData.videoUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/video.m3u8"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.videoUrl
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+              <div className="space-y-8">
+                {/* VIDEO */}
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+                    Movie Video <span className="text-red-500">*</span>
+                  </h3>
+
+                  <MediaSelector
+                    mode={videoInputMode}
+                    onChange={setVideoInputMode}
+                    label="Video Input Method"
                   />
-                  {errors.videoUrl && (
-                    <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                      <AlertCircle size={14} />
-                      {errors.videoUrl}
-                    </p>
+
+                  {videoInputMode === 'upload' ? (
+                    <div className="mt-4">
+                      <VideoUploader
+                        onUploadComplete={(url) => {
+                          setFormData({ ...formData, videoUrl: url });
+                          if (errors.videoUrl) {
+                            setErrors((prev) => {
+                              const newErrors = { ...prev };
+                              delete newErrors.videoUrl;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        currentUrl={formData.videoUrl}
+                        maxSize={2000}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <input
+                        type="text"
+                        name="videoUrl"
+                        value={formData.videoUrl}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com/video.m3u8"
+                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.videoUrl
+                          ? "border-red-500"
+                          : "border-slate-200 dark:border-slate-700"
+                          } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                      />
+                      {errors.videoUrl && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <AlertCircle size={14} />
+                          {errors.videoUrl}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                {/* Thumbnail */}
+                {/* THUMBNAIL */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Thumbnail URL
-                  </label>
-                  <input
-                    type="text"
-                    name="thumbnail"
-                    value={formData.thumbnail}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/thumbnail.jpg"
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+                    Thumbnail
+                  </h3>
+
+                  <MediaSelector
+                    mode={thumbnailInputMode}
+                    onChange={setThumbnailInputMode}
+                    label="Thumbnail Input Method"
                   />
+
+                  {thumbnailInputMode === 'upload' ? (
+                    <div className="mt-4">
+                      <ImageUploader
+                        onUploadComplete={(url) => {
+                          setFormData({ ...formData, thumbnail: url });
+                        }}
+                        currentUrl={formData.thumbnail}
+                        folder="thumbnails"
+                        aspectRatio="16:9"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <input
+                        type="text"
+                        name="thumbnail"
+                        value={formData.thumbnail}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com/thumbnail.jpg"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Poster URL */}
+                {/* POSTER */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Poster URL
-                  </label>
-                  <input
-                    type="text"
-                    name="posterUrl"
-                    value={formData.posterUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/poster.jpg"
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+                    Poster
+                  </h3>
+
+                  <MediaSelector
+                    mode={posterInputMode}
+                    onChange={setPosterInputMode}
+                    label="Poster Input Method"
                   />
+
+                  {posterInputMode === 'upload' ? (
+                    <div className="mt-4">
+                      <ImageUploader
+                        onUploadComplete={(url) => {
+                          setFormData({ ...formData, posterUrl: url });
+                        }}
+                        currentUrl={formData.posterUrl}
+                        folder="posters"
+                        aspectRatio="2:3"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <input
+                        type="text"
+                        name="posterUrl"
+                        value={formData.posterUrl}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com/poster.jpg"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Backdrop URL */}
+                {/* BACKDROP */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Backdrop URL
-                  </label>
-                  <input
-                    type="text"
-                    name="backdropUrl"
-                    value={formData.backdropUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/backdrop.jpg"
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+                    Backdrop
+                  </h3>
+
+                  <MediaSelector
+                    mode={backdropInputMode}
+                    onChange={setBackdropInputMode}
+                    label="Backdrop Input Method"
                   />
+
+                  {backdropInputMode === 'upload' ? (
+                    <div className="mt-4">
+                      <ImageUploader
+                        onUploadComplete={(url) => {
+                          setFormData({ ...formData, backdropUrl: url });
+                        }}
+                        currentUrl={formData.backdropUrl}
+                        folder="backdrops"
+                        aspectRatio="16:9"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <input
+                        type="text"
+                        name="backdropUrl"
+                        value={formData.backdropUrl}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com/backdrop.jpg"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Trailer URL */}
+                {/* TRAILER */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Trailer URL
-                  </label>
-                  <input
-                    type="text"
-                    name="trailerUrl"
-                    value={formData.trailerUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/trailer.m3u8"
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+                    Trailer
+                  </h3>
+
+                  <MediaSelector
+                    mode={trailerInputMode}
+                    onChange={setTrailerInputMode}
+                    label="Trailer Input Method"
                   />
+
+                  {trailerInputMode === 'upload' ? (
+                    <div className="mt-4">
+                      <VideoUploader
+                        onUploadComplete={(url) => {
+                          setFormData({ ...formData, trailerUrl: url });
+                        }}
+                        currentUrl={formData.trailerUrl}
+                        maxSize={500}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <input
+                        type="text"
+                        name="trailerUrl"
+                        value={formData.trailerUrl}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com/trailer.m3u8"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1720,11 +1885,10 @@ const AddEditMovie: React.FC = () => {
                     value={formData.duration}
                     onChange={handleInputChange}
                     placeholder="2h 30m"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.duration
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.duration
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.duration && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1744,11 +1908,10 @@ const AddEditMovie: React.FC = () => {
                     name="releaseDate"
                     value={formData.releaseDate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.releaseDate
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.releaseDate
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.releaseDate && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1769,11 +1932,10 @@ const AddEditMovie: React.FC = () => {
                     value={formData.year}
                     onChange={handleInputChange}
                     placeholder="2024"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.year
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.year
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.year && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1900,11 +2062,10 @@ const AddEditMovie: React.FC = () => {
                       e.key === "Enter" && (e.preventDefault(), addGenre())
                     }
                     placeholder="Enter genre and press Enter"
-                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.genre
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.genre
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   <motion.button
                     type="button"
@@ -1968,11 +2129,10 @@ const AddEditMovie: React.FC = () => {
                     value={formData.director}
                     onChange={handleInputChange}
                     placeholder="Director name"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
-                      errors.director
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.director
+                      ? "border-red-500"
+                      : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.director && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">

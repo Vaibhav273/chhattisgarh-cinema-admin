@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowLeft,
     Upload,
@@ -12,6 +12,8 @@ import {
     CheckCircle,
     MapPin,
     Hash,
+    FolderOpen,
+    X,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -21,6 +23,10 @@ import {
     getDoc,
     updateDoc,
     Timestamp,
+    query,
+    orderBy,
+    limit,
+    getDocs,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../config/firebase";
@@ -37,6 +43,15 @@ interface FormErrors {
     image?: string;
     link?: string;
     dates?: string;
+}
+
+interface MediaFile {
+    id: string;
+    url: string;
+    name: string;
+    type: string;
+    size: number;
+    uploadedAt: any;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -87,6 +102,164 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 📂 MEDIA SELECTOR MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface MediaSelectorProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSelect: (url: string) => void;
+}
+
+const MediaSelector: React.FC<MediaSelectorProps> = ({ isOpen, onClose, onSelect }) => {
+    const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedMedia, setSelectedMedia] = useState<string>("");
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchMediaFiles();
+        }
+    }, [isOpen]);
+
+    const fetchMediaFiles = async () => {
+        try {
+            setLoading(true);
+            const q = query(
+                collection(db, "mediaLibrary"),
+                orderBy("uploadedAt", "desc"),
+                limit(50)
+            );
+            const snapshot = await getDocs(q);
+            const files = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            })) as MediaFile[];
+            setMediaFiles(files.filter((file) => file.type.startsWith("image/")));
+        } catch (error) {
+            console.error("Error fetching media:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSelect = () => {
+        if (selectedMedia) {
+            onSelect(selectedMedia);
+            onClose();
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                onClick={onClose}
+            >
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+                >
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-pink-500 to-rose-600 p-6 text-white flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl flex items-center justify-center">
+                                <FolderOpen size={24} />
+                            </div>
+                            <h3 className="text-2xl font-black">Select from Media Library</h3>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2 hover:bg-white/20 rounded-xl transition-all"
+                        >
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-6">
+                        {loading ? (
+                            <div className="flex items-center justify-center py-20">
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                    className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full"
+                                />
+                            </div>
+                        ) : mediaFiles.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20">
+                                <ImageIcon size={64} className="text-slate-300 dark:text-slate-600 mb-4" />
+                                <p className="text-lg font-bold text-slate-400 dark:text-slate-500">
+                                    No images in media library
+                                </p>
+                                <p className="text-sm text-slate-500 dark:text-slate-600">
+                                    Upload some images first
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {mediaFiles.map((file) => (
+                                    <motion.div
+                                        key={file.id}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => setSelectedMedia(file.url)}
+                                        className={`relative cursor-pointer rounded-xl overflow-hidden border-4 transition-all ${selectedMedia === file.url
+                                            ? "border-pink-500 shadow-lg"
+                                            : "border-transparent hover:border-pink-200 dark:hover:border-pink-800"
+                                            }`}
+                                    >
+                                        <img
+                                            src={file.url}
+                                            alt={file.name}
+                                            className="w-full h-48 object-cover"
+                                        />
+                                        {selectedMedia === file.url && (
+                                            <div className="absolute inset-0 bg-pink-500/30 flex items-center justify-center">
+                                                <CheckCircle size={48} className="text-white" />
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2">
+                                            <p className="text-xs font-semibold truncate">{file.name}</p>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-700">
+                        <button
+                            onClick={onClose}
+                            className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSelect}
+                            disabled={!selectedMedia}
+                            className="px-8 py-3 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <CheckCircle size={20} />
+                            Select Image
+                        </button>
+                    </div>
+                </motion.div>
+            </motion.div>
+        </AnimatePresence>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 📋 MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -116,6 +289,7 @@ const AddEditNewBanner: React.FC = () => {
     const [imagePreview, setImagePreview] = useState<string>("");
     const [uploading, setUploading] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
+    const [isMediaSelectorOpen, setIsMediaSelectorOpen] = useState(false);
 
     // Toast
     const [toast, setToast] = useState({
@@ -207,13 +381,22 @@ const AddEditNewBanner: React.FC = () => {
         }
     };
 
+    // Select from media library
+    const handleMediaSelect = (url: string) => {
+        setImagePreview(url);
+        setCurrentImageUrl(url);
+        setImageFile(null); // Clear file since we're using existing URL
+        setErrors({ ...errors, image: undefined });
+    };
+
     // Remove image
     const handleRemoveImage = () => {
         setImageFile(null);
         if (isEditMode) {
-            setImagePreview(currentImageUrl); // Reset to original in edit mode
+            setImagePreview(currentImageUrl);
         } else {
-            setImagePreview(""); // Clear in add mode
+            setImagePreview("");
+            setCurrentImageUrl("");
         }
     };
 
@@ -225,7 +408,7 @@ const AddEditNewBanner: React.FC = () => {
             newErrors.title = "Banner title is required";
         }
 
-        if (!isEditMode && !imageFile) {
+        if (!isEditMode && !imageFile && !imagePreview) {
             newErrors.image = "Please select a banner image";
         }
 
@@ -277,10 +460,13 @@ const AddEditNewBanner: React.FC = () => {
         try {
             setUploading(true);
 
-            // Upload image (new image or keep existing)
+            // Upload new image or use existing URL
             let imageUrl = currentImageUrl;
             if (imageFile) {
                 imageUrl = await uploadImage(imageFile);
+            } else if (!imageUrl && imagePreview) {
+                // Using media library URL
+                imageUrl = imagePreview;
             }
 
             // Create banner data
@@ -298,11 +484,9 @@ const AddEditNewBanner: React.FC = () => {
             };
 
             if (isEditMode) {
-                // Update existing banner
                 await updateDoc(doc(db, "banners", id!), bannerData);
                 showToast("Banner updated successfully!", "success");
             } else {
-                // Create new banner
                 await addDoc(collection(db, "banners"), {
                     ...bannerData,
                     clicks: 0,
@@ -312,7 +496,6 @@ const AddEditNewBanner: React.FC = () => {
                 showToast("Banner created successfully!", "success");
             }
 
-            // Navigate back after 1.5 seconds
             setTimeout(() => {
                 navigate("/admin/marketing/banners");
             }, 1500);
@@ -370,6 +553,13 @@ const AddEditNewBanner: React.FC = () => {
                 type={toast.type}
                 isVisible={toast.isVisible}
                 onClose={hideToast}
+            />
+
+            {/* Media Selector Modal */}
+            <MediaSelector
+                isOpen={isMediaSelectorOpen}
+                onClose={() => setIsMediaSelectorOpen(false)}
+                onSelect={handleMediaSelect}
             />
 
             <div className="space-y-6 w-full">
@@ -433,9 +623,7 @@ const AddEditNewBanner: React.FC = () => {
                                                 Banner Image
                                             </h3>
                                             <p className="text-sm text-slate-600 dark:text-slate-400">
-                                                {isEditMode
-                                                    ? "Upload a new image or keep the current one (Max 5MB)"
-                                                    : "Upload a high-quality banner image (Max 5MB)"}
+                                                Upload or select from media library (Max 5MB)
                                             </p>
                                         </div>
                                     </div>
@@ -450,8 +638,16 @@ const AddEditNewBanner: React.FC = () => {
                                                 className="w-full h-64 object-cover rounded-2xl"
                                             />
                                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsMediaSelectorOpen(true)}
+                                                    className="px-6 py-3 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-all flex items-center gap-2"
+                                                >
+                                                    <FolderOpen size={20} />
+                                                    Media Library
+                                                </button>
                                                 <label className="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all cursor-pointer">
-                                                    {isEditMode ? "Change Image" : "Replace Image"}
+                                                    Upload New
                                                     <input
                                                         type="file"
                                                         accept="image/*"
@@ -459,7 +655,7 @@ const AddEditNewBanner: React.FC = () => {
                                                         className="hidden"
                                                     />
                                                 </label>
-                                                {imageFile && (
+                                                {(imageFile || (isEditMode && currentImageUrl)) && (
                                                     <button
                                                         type="button"
                                                         onClick={handleRemoveImage}
@@ -471,21 +667,34 @@ const AddEditNewBanner: React.FC = () => {
                                             </div>
                                         </div>
                                     ) : (
-                                        <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-12 flex flex-col items-center cursor-pointer hover:border-pink-500 dark:hover:border-pink-500 transition-all">
-                                            <Upload size={64} className="text-slate-400 dark:text-slate-600 mb-4" />
-                                            <span className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-2">
-                                                Click to upload banner image
-                                            </span>
-                                            <span className="text-sm text-slate-500 dark:text-slate-500">
-                                                PNG, JPG, GIF up to 5MB
-                                            </span>
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleImageSelect}
-                                                className="hidden"
-                                            />
-                                        </label>
+                                        <div className="space-y-4">
+                                            <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-12 flex flex-col items-center cursor-pointer hover:border-pink-500 dark:hover:border-pink-500 transition-all">
+                                                <Upload size={64} className="text-slate-400 dark:text-slate-600 mb-4" />
+                                                <span className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-2">
+                                                    Click to upload banner image
+                                                </span>
+                                                <span className="text-sm text-slate-500 dark:text-slate-500">
+                                                    PNG, JPG, GIF up to 5MB
+                                                </span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleImageSelect}
+                                                    className="hidden"
+                                                />
+                                            </label>
+                                            <div className="text-center">
+                                                <span className="text-slate-500 dark:text-slate-400">or</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsMediaSelectorOpen(true)}
+                                                className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <FolderOpen size={20} />
+                                                Choose from Media Library
+                                            </button>
+                                        </div>
                                     )}
                                     {imageFile && (
                                         <p className="mt-2 text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
