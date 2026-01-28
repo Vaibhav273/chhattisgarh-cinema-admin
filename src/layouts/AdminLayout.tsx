@@ -544,6 +544,14 @@ const AdminLayout: React.FC = () => {
         // Analytics
         {
             icon: BarChart3,
+            label: "Analytics",
+            path: "/admin/analytics/dashboard",
+            badge: null,
+            show: can(Permission.VIEW_PLATFORM_ANALYTICS),
+            color: "from-cyan-400 to-blue-500",
+        },
+        {
+            icon: BarChart3,
             label: "Platform Analytics",
             path: "/admin/analytics/platform",
             badge: null,

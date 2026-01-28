@@ -100,6 +100,7 @@ import AddEditNewBanner from "./admin/marketing/AddEditNewBanner";
 import AddNewEditNotification from "./admin/marketing/AddNewEditNotification";
 import AddNewEditPromotion from "./admin/marketing/AddNewEditPromotion";
 import AnalyticsGenerator from "./admin/analytics/AnalyticsGenerator";
+import AnalyticsDashboard from "./admin/analytics/AnalyticsDashboard";
 
 const App: React.FC = () => {
   return (
@@ -367,6 +368,17 @@ const App: React.FC = () => {
               />
 
               {/* Analytics */}
+              <Route
+                path="analytics/dashboard"
+                element={
+                  <ProtectedRoute
+                    requireAdmin
+                    allowedRoles={["analyst", "super_admin"]}
+                  >
+                    <AnalyticsDashboard />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="analytics/analytics-generator"
                 element={
