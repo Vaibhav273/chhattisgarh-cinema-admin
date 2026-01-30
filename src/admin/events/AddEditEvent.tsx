@@ -1042,6 +1042,8 @@ const AddEditEvent: React.FC = () => {
                                 onUploadComplete={handleTrailerUpload}
                                 existingVideoUrl={formData.trailerCdnUrl || formData.trailerUrl}
                                 folder="events/trailers"
+                                maxSize={200}
+                                acceptedFormats={['mp4', 'webm']}
                             />
                         </div>
 
@@ -1055,6 +1057,8 @@ const AddEditEvent: React.FC = () => {
                                 onUploadComplete={handlePromoVideoUpload}
                                 existingVideoUrl={formData.promoVideoCdnUrl || formData.promoVideoUrl}
                                 folder="events/promos"
+                                maxSize={100}
+                                acceptedFormats={['mp4', 'webm']}
                             />
                         </div>
 
@@ -1069,6 +1073,8 @@ const AddEditEvent: React.FC = () => {
                                     onUploadComplete={handleLiveStreamUpload}
                                     existingVideoUrl={formData.liveStreamCdnUrl || formData.liveStreamUrl}
                                     folder="events/livestreams"
+                                    maxSize={2000}                         
+                                    acceptedFormats={['mp4']}
                                 />
                             </div>
                         )}
