@@ -13,7 +13,6 @@ import {
     TrendingUp,
     Settings,
     LogOut,
-    Bell,
     Search,
     ChevronRight,
     Clapperboard,
@@ -41,6 +40,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { Permission } from "../types/roles";
+import NotificationBell from "../components/notifications/NotificationBell";
 
 // ═══════════════════════════════════════════════════════════════
 // 🎯 DYNAMIC COUNTS INTERFACE
@@ -921,20 +921,7 @@ const AdminLayout: React.FC = () => {
                                 className={`w-80 pl-12 pr-4 py-3 ${searchBg} backdrop-blur-xl border rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent transition-all`}
                             />
                         </motion.div>
-
-                        {/* Notifications */}
-                        <motion.button
-                            whileHover={{ scale: 1.05, rotate: 15 }}
-                            whileTap={{ scale: 0.95 }}
-                            className={`relative p-3 ${notificationBg} backdrop-blur-xl border rounded-2xl transition-all group`}
-                        >
-                            <Bell size={20} className={`${textSecondary} group-hover:text-orange-500 transition-colors`} />
-                            <motion.span
-                                animate={{ scale: [1, 1.2, 1] }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                                className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full"
-                            />
-                        </motion.button>
+                        <NotificationBell />
 
                         {/* Profile */}
                         <motion.div

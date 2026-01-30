@@ -307,8 +307,8 @@ const CastModal: React.FC<CastModalProps> = ({
               {castImageMode === 'upload' ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url) => {
-                      setCastData({ ...castData, profileImage: url });
+                    onUploadComplete={(url, cdnUrl) => {
+                      setCastData({ ...castData, profileImage: cdnUrl || url });
                     }}
                     currentUrl={castData.profileImage}
                     folder="cast"
@@ -661,8 +661,8 @@ const CrewModal: React.FC<CrewModalProps> = ({
               {crewImageMode === 'upload' ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url) => {
-                      setCrewData({ ...crewData, profileImage: url });
+                    onUploadComplete={(url, cdnUrl) => {
+                      setCrewData({ ...crewData, profileImage: cdnUrl || url });
                     }}
                     currentUrl={crewData.profileImage}
                     folder="crew"
@@ -860,6 +860,13 @@ const AddEditMovie: React.FC = () => {
     backdropUrl: "",
     trailerUrl: "",
     videoUrl: "",
+
+    thumbnailCdnUrl: "",
+    posterCdnUrl: "",
+    backdropCdnUrl: "",
+    trailerCdnUrl: "",
+    videoCdnUrl: "",
+
     duration: "",
     releaseDate: "",
     year: "",
@@ -935,6 +942,13 @@ const AddEditMovie: React.FC = () => {
         backdropUrl: movieData.backdropUrl || "",
         trailerUrl: movieData.trailerUrl || "",
         videoUrl: movieData.videoUrl || "",
+
+        thumbnailCdnUrl: movieData.thumbnailCdnUrl || "",
+        posterCdnUrl: movieData.posterCdnUrl || "",
+        backdropCdnUrl: movieData.backdropCdnUrl || "",
+        trailerCdnUrl: movieData.trailerCdnUrl || "",
+        videoCdnUrl: movieData.videoCdnUrl || "",
+
         duration: movieData.duration || "",
         releaseDate: movieData.releaseDate || "",
         year: movieData.year || "",
@@ -1120,6 +1134,21 @@ const AddEditMovie: React.FC = () => {
       }
       if (formData.trailerUrl?.trim()) {
         movieData.trailerUrl = formData.trailerUrl.trim();
+      }
+      if (formData.thumbnailCdnUrl?.trim()) {
+        movieData.thumbnailCdnUrl = formData.thumbnailCdnUrl.trim();
+      }
+      if (formData.posterCdnUrl?.trim()) {
+        movieData.posterCdnUrl = formData.posterCdnUrl.trim();
+      }
+      if (formData.backdropCdnUrl?.trim()) {
+        movieData.backdropCdnUrl = formData.backdropCdnUrl.trim();
+      }
+      if (formData.trailerCdnUrl?.trim()) {
+        movieData.trailerCdnUrl = formData.trailerCdnUrl.trim();
+      }
+      if (formData.videoCdnUrl?.trim()) {
+        movieData.videoCdnUrl = formData.videoCdnUrl.trim();
       }
       if (formData.directorHindi?.trim()) {
         movieData.directorHindi = formData.directorHindi.trim();
@@ -1678,8 +1707,12 @@ const AddEditMovie: React.FC = () => {
                   {videoInputMode === 'upload' ? (
                     <div className="mt-4">
                       <VideoUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, videoUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            videoUrl: url,           // Keep for backward compatibility
+                            videoCdnUrl: cdnUrl || url         // ADD THIS
+                          });
                           if (errors.videoUrl) {
                             setErrors((prev) => {
                               const newErrors = { ...prev };
@@ -1688,7 +1721,7 @@ const AddEditMovie: React.FC = () => {
                             });
                           }
                         }}
-                        currentUrl={formData.videoUrl}
+                        currentUrl={formData.videoCdnUrl || formData.videoUrl}  // CDN first
                         maxSize={2000}
                       />
                     </div>
@@ -1730,10 +1763,14 @@ const AddEditMovie: React.FC = () => {
                   {thumbnailInputMode === 'upload' ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, thumbnail: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            thumbnail: url,           // Keep for backward compatibility
+                            thumbnailCdnUrl: cdnUrl || url      // ADD THIS - Save to CDN field
+                          });
                         }}
-                        currentUrl={formData.thumbnail}
+                        currentUrl={formData.thumbnailCdnUrl || formData.thumbnail}  // CDN first
                         folder="thumbnails"
                         aspectRatio="16:9"
                       />
@@ -1767,10 +1804,14 @@ const AddEditMovie: React.FC = () => {
                   {posterInputMode === 'upload' ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, posterUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            posterUrl: url,          // Keep for backward compatibility
+                            posterCdnUrl: cdnUrl || url        // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.posterUrl}
+                        currentUrl={formData.posterCdnUrl || formData.posterUrl}  // CDN first
                         folder="posters"
                         aspectRatio="2:3"
                       />
@@ -1804,10 +1845,14 @@ const AddEditMovie: React.FC = () => {
                   {backdropInputMode === 'upload' ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, backdropUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            backdropUrl: url,        // Keep for backward compatibility
+                            backdropCdnUrl: cdnUrl || url      // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.backdropUrl}
+                        currentUrl={formData.backdropCdnUrl || formData.backdropUrl}  // CDN first
                         folder="backdrops"
                         aspectRatio="16:9"
                       />
@@ -1841,10 +1886,14 @@ const AddEditMovie: React.FC = () => {
                   {trailerInputMode === 'upload' ? (
                     <div className="mt-4">
                       <VideoUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, trailerUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            trailerUrl: url,         // Keep for backward compatibility
+                            trailerCdnUrl: cdnUrl || url       // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.trailerUrl}
+                        currentUrl={formData.trailerCdnUrl || formData.trailerUrl}  // CDN first
                         maxSize={500}
                       />
                     </div>

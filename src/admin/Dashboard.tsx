@@ -898,7 +898,7 @@ const AdminDashboard: React.FC = () => {
                                         </motion.div>
                                     )}
 
-                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 xl:grid-cols-1 gap-6">
                                         {contentPerformance.length > 0 ? (
                                             <motion.div
                                                 initial={{ opacity: 0, y: 20 }}

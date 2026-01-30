@@ -8,9 +8,13 @@ import {
     Film,
     Loader,
     CheckCircle,
+    Globe, // ✅ ADD
 } from "lucide-react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../config/firebase";
+// ✅ ADD: Import CDN settings service
+import { getCDNSettings, buildCDNUrl } from "../../services/settingsService";
+import type { CDNSettings } from "../../services/settingsService";
 
 interface MediaLibraryProps {
     isOpen: boolean;
@@ -23,6 +27,7 @@ interface MediaLibraryProps {
 interface MediaItem {
     id: string;
     url: string;
+    cdnUrl?: string; // ✅ ADD: CDN URL
     type: "image" | "video";
     name: string;
     uploadedAt: any;
@@ -41,11 +46,26 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
     const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
     const [filterType, setFilterType] = useState<"all" | "image" | "video">(mediaType);
 
+    // ✅ ADD: CDN settings state
+    const [cdnSettings, setCDNSettings] = useState<CDNSettings | null>(null);
+
     useEffect(() => {
         if (isOpen) {
+            loadCDNSettings();
             fetchMediaItems();
         }
     }, [isOpen]);
+
+    // ✅ ADD: Load CDN settings
+    const loadCDNSettings = async () => {
+        try {
+            const settings = await getCDNSettings();
+            setCDNSettings(settings);
+            console.log('✅ CDN settings loaded in MediaLibrary:', settings);
+        } catch (error) {
+            console.error('❌ Error loading CDN settings:', error);
+        }
+    };
 
     const fetchMediaItems = async () => {
         try {
@@ -65,6 +85,7 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
                     items.push({
                         id: `${doc.id}-poster`,
                         url: data.posterUrl,
+                        cdnUrl: data.posterCdnUrl, // ✅ ADD: CDN URL from Firestore
                         type: "image",
                         name: `${data.title} - Poster`,
                         uploadedAt: data.createdAt,
@@ -76,6 +97,7 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
                     items.push({
                         id: `${doc.id}-backdrop`,
                         url: data.backdropUrl,
+                        cdnUrl: data.backdropCdnUrl, // ✅ ADD: CDN URL from Firestore
                         type: "image",
                         name: `${data.title} - Backdrop`,
                         uploadedAt: data.createdAt,
@@ -87,6 +109,7 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
                     items.push({
                         id: `${doc.id}-trailer`,
                         url: data.trailerUrl,
+                        cdnUrl: data.trailerCdnUrl, // ✅ ADD: CDN URL from Firestore
                         type: "video",
                         name: `${data.title} - Trailer`,
                         uploadedAt: data.createdAt,
@@ -107,6 +130,20 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
         const matchesType = filterType === "all" || item.type === filterType;
         return matchesSearch && matchesType;
     });
+
+    // ✅ ADD: Get display URL (CDN if available, otherwise original)
+    const getDisplayUrl = (item: MediaItem): string => {
+        // Use stored CDN URL if available
+        if (item.cdnUrl) return item.cdnUrl;
+
+        // Otherwise generate CDN URL on-the-fly if CDN is enabled
+        if (cdnSettings && cdnSettings.enabled) {
+            return buildCDNUrl(item.url, cdnSettings);
+        }
+
+        // Fallback to original URL
+        return item.url;
+    };
 
     const handleSelect = () => {
         if (selectedMedia) {
@@ -138,9 +175,20 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
                     {/* Header */}
                     <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-2xl font-black text-slate-800 dark:text-white">
-                                {title}
-                            </h2>
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-2xl font-black text-slate-800 dark:text-white">
+                                    {title}
+                                </h2>
+                                {/* ✅ ADD: CDN status badge */}
+                                {cdnSettings?.enabled && (
+                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                                        <Globe size={14} className="text-cyan-600 dark:text-cyan-400" />
+                                        <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400">
+                                            CDN Active
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
                             <button
                                 onClick={onClose}
                                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-all shadow-lg"
@@ -215,61 +263,81 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {filteredMedia.map((item) => (
-                                    <motion.div
-                                        key={item.id}
-                                        whileHover={{ scale: 1.05 }}
-                                        onClick={() => setSelectedMedia(item.url)}
-                                        className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer border-4 transition-all ${selectedMedia === item.url
-                                                ? "border-blue-500 shadow-lg shadow-blue-500/50"
-                                                : "border-transparent hover:border-slate-300 dark:hover:border-slate-700"
-                                            }`}
-                                    >
-                                        {item.type === "image" ? (
-                                            <img
-                                                src={item.url}
-                                                alt={item.name}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                                                <Film size={32} className="text-slate-400" />
-                                            </div>
-                                        )}
+                                {filteredMedia.map((item) => {
+                                    const displayUrl = getDisplayUrl(item); // ✅ MODIFIED: Use CDN URL
 
-                                        {/* Selected Check */}
-                                        {selectedMedia === item.url && (
-                                            <motion.div
-                                                initial={{ scale: 0 }}
-                                                animate={{ scale: 1 }}
-                                                className="absolute top-2 right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg"
-                                            >
-                                                <CheckCircle size={20} className="text-white" />
-                                            </motion.div>
-                                        )}
-
-                                        {/* Type Badge */}
-                                        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-xs font-semibold text-white flex items-center gap-1">
+                                    return (
+                                        <motion.div
+                                            key={item.id}
+                                            whileHover={{ scale: 1.05 }}
+                                            onClick={() => setSelectedMedia(displayUrl)} // ✅ MODIFIED: Select CDN URL
+                                            className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer border-4 transition-all ${selectedMedia === displayUrl
+                                                    ? "border-blue-500 shadow-lg shadow-blue-500/50"
+                                                    : "border-transparent hover:border-slate-300 dark:hover:border-slate-700"
+                                                }`}
+                                        >
                                             {item.type === "image" ? (
-                                                <ImageIcon size={12} />
+                                                <img
+                                                    src={displayUrl} // ✅ MODIFIED: Use CDN URL
+                                                    alt={item.name}
+                                                    className="w-full h-full object-cover"
+                                                />
                                             ) : (
-                                                <Film size={12} />
+                                                <div className="w-full h-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                                                    <Film size={32} className="text-slate-400" />
+                                                </div>
                                             )}
-                                            {item.type}
-                                        </div>
-                                    </motion.div>
-                                ))}
+
+                                            {/* Selected Check */}
+                                            {selectedMedia === displayUrl && (
+                                                <motion.div
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="absolute top-2 right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg"
+                                                >
+                                                    <CheckCircle size={20} className="text-white" />
+                                                </motion.div>
+                                            )}
+
+                                            {/* ✅ ADD: CDN Badge */}
+                                            {(item.cdnUrl || (cdnSettings?.enabled)) && (
+                                                <div className="absolute top-2 left-2 px-2 py-1 bg-cyan-500 rounded-lg text-xs font-bold text-white flex items-center gap-1 shadow-lg">
+                                                    <Globe size={10} />
+                                                    CDN
+                                                </div>
+                                            )}
+
+                                            {/* Type Badge */}
+                                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-xs font-semibold text-white flex items-center gap-1">
+                                                {item.type === "image" ? (
+                                                    <ImageIcon size={12} />
+                                                ) : (
+                                                    <Film size={12} />
+                                                )}
+                                                {item.type}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
 
                     {/* Footer */}
                     <div className="px-8 py-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {selectedMedia
-                                ? "Click 'Select' to use this media"
-                                : "Click on any media to select"}
-                        </p>
+                        <div>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                                {selectedMedia
+                                    ? "Click 'Select' to use this media"
+                                    : "Click on any media to select"}
+                            </p>
+                            {/* ✅ ADD: CDN info */}
+                            {cdnSettings?.enabled && (
+                                <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
+                                    Media served via {cdnSettings.provider} CDN
+                                </p>
+                            )}
+                        </div>
                         <div className="flex gap-3">
                             <button
                                 onClick={onClose}

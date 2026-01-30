@@ -359,8 +359,13 @@ const ShortFilmsManagement: React.FC = () => {
                     descriptionHindi: data.descriptionHindi,
                     thumbnail: data.thumbnail,
                     thumbnailUrl: data.thumbnailUrl,
+                    thumbnailCdnUrl: data.thumbnailCdnUrl,
                     posterUrl: data.posterUrl,
+                    posterCdnUrl: data.posterCdnUrl,
                     backdropUrl: data.backdropUrl,
+                    backdropCdnUrl: data.backdropCdnUrl,
+                    videoCdnUrl: data.videoCdnUrl,
+                    trailerCdnUrl: data.trailerCdnUrl,
                     banner: data.banner,
                     rating: data.rating,
                     ratingCount: data.ratingCount,
@@ -791,7 +796,13 @@ const ShortFilmsManagement: React.FC = () => {
                                 {/* Thumbnail */}
                                 <div className="relative aspect-[2/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
                                     <img
-                                        src={film.posterUrl || film.thumbnailUrl || film.thumbnail}
+                                        src={
+                                            film.posterCdnUrl ||
+                                            film.posterUrl ||
+                                            film.thumbnailCdnUrl ||
+                                            film.thumbnailUrl ||
+                                            film.thumbnail
+                                        }
                                         alt={film.title}
                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                         onError={(e) => {

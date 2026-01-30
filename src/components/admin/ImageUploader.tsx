@@ -1,17 +1,22 @@
 // src/components/admin/ImageUploader.tsx
-import React, { useState, useRef } from 'react';
-import { X, Image as ImageIcon, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react'; // ✅ ADD useEffect
+import { X, Image as ImageIcon, Loader2, CheckCircle2, AlertCircle, Globe } from 'lucide-react'; // ✅ ADD Globe
 import { motion } from 'framer-motion';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../config/firebase';
+// ✅ ADD: Import CDN settings service
+import { getCDNSettings, buildCDNUrl } from '../../services/settingsService';
+import type { CDNSettings } from '../../services/settingsService';
 
 type UploadStatus = 'idle' | 'uploading' | 'completed' | 'error';
 
 interface ImageUploaderProps {
-    onUploadComplete: (url: string) => void;
+    onUploadComplete: (url: string, cdnUrl?: string) => void;
     onUploadStart?: () => void;
     currentUrl?: string;
-    maxSize?: number; // in MB
+    existingImageUrl?: string;
+    maxSize?: number;
+    multiple?: boolean;
     acceptedFormats?: string[];
     folder?: string;
     aspectRatio?: string;
@@ -21,20 +26,50 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     onUploadComplete,
     onUploadStart,
     currentUrl,
+    existingImageUrl,
     maxSize = 5,
     acceptedFormats = ['jpg', 'jpeg', 'png', 'webp'],
     folder = 'images',
     aspectRatio,
+    multiple
 }) => {
     const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
     const [uploadProgress, setUploadProgress] = useState(0);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState(currentUrl || '');
+    const [previewUrl, setPreviewUrl] = useState(existingImageUrl || currentUrl || '');
     const [error, setError] = useState('');
     const [isDragging, setIsDragging] = useState(false);
 
+    // ✅ ADD: CDN settings state
+    const [cdnSettings, setCDNSettings] = useState<CDNSettings | null>(null);
+    const [loadingCDN, setLoadingCDN] = useState(true);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const uploadTaskRef = useRef<any>(null);
+
+    // ✅ ADD: Load CDN settings on mount
+    useEffect(() => {
+        loadCDNSettings();
+    }, []);
+
+    useEffect(() => {
+        if (existingImageUrl && !selectedFile) {
+            setPreviewUrl(existingImageUrl);
+        }
+    }, [existingImageUrl, selectedFile]);
+
+    const loadCDNSettings = async () => {
+        try {
+            setLoadingCDN(true);
+            const settings = await getCDNSettings();
+            setCDNSettings(settings);
+            console.log('✅ Loaded CDN settings:', settings);
+        } catch (error) {
+            console.error('❌ Error loading CDN settings:', error);
+        } finally {
+            setLoadingCDN(false);
+        }
+    };
 
     const validateFile = (file: File): string | null => {
         const fileExtension = file.name.split('.').pop()?.toLowerCase();
@@ -97,8 +132,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 },
                 async () => {
                     const url = await getDownloadURL(uploadTaskRef.current.snapshot.ref);
+
+                    // ✅ ADD: Build CDN URL if enabled
+                    let cdnUrl = url;
+                    if (cdnSettings && cdnSettings.enabled) {
+                        cdnUrl = buildCDNUrl(url, cdnSettings);
+                        console.log('✅ CDN URL generated:', cdnUrl);
+                    }
+
                     setUploadStatus('completed');
-                    onUploadComplete(url);
+                    onUploadComplete(url, cdnUrl); // ✅ MODIFIED: Pass both URLs
                 }
             );
         } catch (err) {
@@ -148,6 +191,18 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
         }
     };
 
+    // ✅ ADD: Show loading state while CDN settings load
+    if (loadingCDN) {
+        return (
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl p-10 text-center">
+                <Loader2 className="animate-spin text-purple-500 mx-auto mb-3" size={32} />
+                <p className="text-slate-600 dark:text-slate-400 text-sm font-semibold">
+                    Loading settings...
+                </p>
+            </div>
+        );
+    }
+
     if (previewUrl && selectedFile) {
         return (
             <motion.div
@@ -183,6 +238,21 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                             </div>
                         </motion.div>
                     )}
+
+                    {/* ✅ ADD: CDN indicator badge */}
+                    {uploadStatus === 'completed' && cdnSettings?.enabled && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="absolute bottom-4 left-4"
+                        >
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500 rounded-lg shadow-lg">
+                                <Globe size={14} className="text-white" />
+                                <span className="text-xs font-bold text-white">CDN Enabled</span>
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
 
                 <div className="p-5">
@@ -203,6 +273,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                                 </p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {(selectedFile.size / 1024).toFixed(2)} KB
+                                    {/* ✅ ADD: CDN provider info */}
+                                    {uploadStatus === 'completed' && cdnSettings?.enabled && (
+                                        <span className="ml-2">• via {cdnSettings.provider}</span>
+                                    )}
                                 </p>
                             </div>
                         </div>
@@ -245,9 +319,17 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 ref={fileInputRef}
                 type="file"
                 accept={acceptedFormats.map(f => `.${f}`).join(',')}
+                multiple={multiple}  // ✅ ADD THIS
                 onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileSelect(file);
+                    if (multiple) {
+                        // Handle multiple files
+                        const files = Array.from(e.target.files || []);
+                        files.forEach(file => handleFileSelect(file));
+                    } else {
+                        // Handle single file
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelect(file);
+                    }
                 }}
                 className="hidden"
             />
@@ -267,7 +349,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                     }
         `}
             >
-                {/* Animated Background */}
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5 dark:from-purple-500/10 dark:to-pink-500/10" />
 
                 <div className="relative z-10">
@@ -307,6 +388,24 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                             </span>
                         )}
                     </div>
+
+                    {/* ✅ ADD: CDN status indicator */}
+                    {cdnSettings && (
+                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${cdnSettings.enabled
+                                ? 'bg-cyan-50 dark:bg-cyan-900/20'
+                                : 'bg-slate-100 dark:bg-slate-800'
+                                }`}>
+                                <Globe size={14} className={cdnSettings.enabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'} />
+                                <span className={`text-xs font-semibold ${cdnSettings.enabled
+                                    ? 'text-cyan-600 dark:text-cyan-400'
+                                    : 'text-slate-500'
+                                    }`}>
+                                    CDN: {cdnSettings.enabled ? `${cdnSettings.provider}` : 'Disabled'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </motion.div>
 

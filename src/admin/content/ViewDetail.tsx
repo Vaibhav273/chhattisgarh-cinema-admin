@@ -1,4 +1,3 @@
-// src/pages/admin/content/ContentDetail.tsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -329,10 +328,10 @@ const ContentDetail: React.FC = () => {
       dataIndex: "thumbnail",
       key: "thumbnail",
       width: 120,
-      render: (url: string) =>
-        url ? (
+      render: (url: string, record: Episode) =>
+        record.thumbnailCdnUrl || url ? (
           <Image
-            src={url}
+            src={record.thumbnailCdnUrl || url}
             alt="Episode"
             width={100}
             height={56}
@@ -433,8 +432,8 @@ const ContentDetail: React.FC = () => {
         className="relative bg-cover bg-center bg-no-repeat py-16"
         style={{
           backgroundImage:
-            content.backdropUrl || content.banner
-              ? `linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.9)), url(${content.backdropUrl || content.banner})`
+            content.backdropCdnUrl || content.backdropUrl || content.banner
+              ? `linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.9)), url(${content.backdropCdnUrl || content.backdropUrl || content.banner})`
               : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         }}
       >
@@ -443,12 +442,16 @@ const ContentDetail: React.FC = () => {
             {/* Poster */}
             <Col xs={24} md={8} lg={6}>
               <div className="relative rounded-xl overflow-hidden shadow-2xl transition-transform hover:-translate-y-2">
-                {content.posterUrl ||
-                content.thumbnailUrl ||
-                content.thumbnail ? (
+                {content.posterCdnUrl ||
+                  content.posterUrl ||
+                  content.thumbnailCdnUrl ||
+                  content.thumbnailUrl ||
+                  content.thumbnail ? (
                   <Image
                     src={
+                      content.posterCdnUrl ||
                       content.posterUrl ||
+                      content.thumbnailCdnUrl ||
                       content.thumbnailUrl ||
                       content.thumbnail
                     }
@@ -726,18 +729,18 @@ const ContentDetail: React.FC = () => {
                   {((content as Movie).plotSummary ||
                     (content as ShortFilm).plotSummary ||
                     (content as WebSeries).plotSummary) && (
-                    <>
-                      <Divider />
-                      <div>
-                        <Title level={4}>Plot Summary</Title>
-                        <Paragraph className="text-base leading-relaxed text-gray-700">
-                          {(content as Movie).plotSummary ||
-                            (content as ShortFilm).plotSummary ||
-                            (content as WebSeries).plotSummary}
-                        </Paragraph>
-                      </div>
-                    </>
-                  )}
+                      <>
+                        <Divider />
+                        <div>
+                          <Title level={4}>Plot Summary</Title>
+                          <Paragraph className="text-base leading-relaxed text-gray-700">
+                            {(content as Movie).plotSummary ||
+                              (content as ShortFilm).plotSummary ||
+                              (content as WebSeries).plotSummary}
+                          </Paragraph>
+                        </div>
+                      </>
+                    )}
 
                   {/* Production Details */}
                   <Divider />
@@ -894,77 +897,77 @@ const ContentDetail: React.FC = () => {
                   {/* Media Section */}
                   {((content as Movie | ShortFilm).videoUrl ||
                     (content as Movie | WebSeries).trailerUrl) && (
-                    <>
-                      <Divider />
-                      <div>
-                        <Title level={4}>Media</Title>
-                        <div className="space-y-4">
-                          {(content as Movie | ShortFilm).videoUrl &&
-                            (content.category === "movie" ||
-                              content.category === "movies" ||
-                              content.category === "short-film" ||
-                              content.category === "shortfilms") && (
+                      <>
+                        <Divider />
+                        <div>
+                          <Title level={4}>Media</Title>
+                          <div className="space-y-4">
+                            {(content as Movie | ShortFilm).videoUrl &&
+                              (content.category === "movie" ||
+                                content.category === "movies" ||
+                                content.category === "short-film" ||
+                                content.category === "shortfilms") && (
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                  <Text strong className="block mb-2">
+                                    Main Video
+                                  </Text>
+                                  <div className="flex items-center gap-3">
+                                    <Text
+                                      copyable={{
+                                        text: (content as Movie).videoUrl,
+                                      }}
+                                      ellipsis
+                                      className="text-sm text-gray-600 flex-1"
+                                    >
+                                      {(content as Movie).videoUrl}
+                                    </Text>
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={<PlayCircleOutlined />}
+                                      href={(content as Movie).videoUrl}
+                                      target="_blank"
+                                    >
+                                      Play
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+
+                            {(content as Movie | WebSeries).trailerUrl && (
                               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                                 <Text strong className="block mb-2">
-                                  Main Video
+                                  Trailer
                                 </Text>
                                 <div className="flex items-center gap-3">
                                   <Text
                                     copyable={{
-                                      text: (content as Movie).videoUrl,
+                                      text: (content as Movie | WebSeries)
+                                        .trailerUrl,
                                     }}
                                     ellipsis
                                     className="text-sm text-gray-600 flex-1"
                                   >
-                                    {(content as Movie).videoUrl}
+                                    {(content as Movie | WebSeries).trailerUrl}
                                   </Text>
                                   <Button
                                     type="link"
                                     size="small"
                                     icon={<PlayCircleOutlined />}
-                                    href={(content as Movie).videoUrl}
+                                    href={
+                                      (content as Movie | WebSeries).trailerUrl
+                                    }
                                     target="_blank"
                                   >
-                                    Play
+                                    Watch
                                   </Button>
                                 </div>
                               </div>
                             )}
-
-                          {(content as Movie | WebSeries).trailerUrl && (
-                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                              <Text strong className="block mb-2">
-                                Trailer
-                              </Text>
-                              <div className="flex items-center gap-3">
-                                <Text
-                                  copyable={{
-                                    text: (content as Movie | WebSeries)
-                                      .trailerUrl,
-                                  }}
-                                  ellipsis
-                                  className="text-sm text-gray-600 flex-1"
-                                >
-                                  {(content as Movie | WebSeries).trailerUrl}
-                                </Text>
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  icon={<PlayCircleOutlined />}
-                                  href={
-                                    (content as Movie | WebSeries).trailerUrl
-                                  }
-                                  target="_blank"
-                                >
-                                  Watch
-                                </Button>
-                              </div>
-                            </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    </>
-                  )}
+                      </>
+                    )}
                 </div>
               </Tabs.TabPane>
 
@@ -1033,9 +1036,9 @@ const ContentDetail: React.FC = () => {
                             }
                             key={index}
                             extra={
-                              season.posterUrl && (
+                              (season.posterCdnUrl || season.posterUrl) && (
                                 <Image
-                                  src={season.posterUrl}
+                                  src={season.posterCdnUrl || season.posterUrl}
                                   alt={season.title}
                                   width={40}
                                   height={60}
@@ -1222,18 +1225,18 @@ const ContentDetail: React.FC = () => {
 
                 {((content as Movie).releaseDate ||
                   (content as ShortFilm).releaseDate) && (
-                  <div>
-                    <Text type="secondary" className="block mb-1">
-                      Release Date
-                    </Text>
-                    <Text strong>
-                      {formatDate(
-                        (content as Movie).releaseDate ||
+                    <div>
+                      <Text type="secondary" className="block mb-1">
+                        Release Date
+                      </Text>
+                      <Text strong>
+                        {formatDate(
+                          (content as Movie).releaseDate ||
                           (content as ShortFilm).releaseDate,
-                      )}
-                    </Text>
-                  </div>
-                )}
+                        )}
+                      </Text>
+                    </div>
+                  )}
 
                 {webSeries?.lastAirDate && (
                   <div>
@@ -1260,7 +1263,7 @@ const ContentDetail: React.FC = () => {
                     </Text>
                     <Text>
                       {typeof content.createdAt === "object" &&
-                      "toDate" in content.createdAt
+                        "toDate" in content.createdAt
                         ? content.createdAt.toDate().toLocaleString("en-IN")
                         : new Date(content.createdAt).toLocaleString("en-IN")}
                     </Text>
@@ -1274,7 +1277,7 @@ const ContentDetail: React.FC = () => {
                     </Text>
                     <Text>
                       {typeof content.updatedAt === "object" &&
-                      "toDate" in content.updatedAt
+                        "toDate" in content.updatedAt
                         ? content.updatedAt.toDate().toLocaleString("en-IN")
                         : new Date(content.updatedAt).toLocaleString("en-IN")}
                     </Text>
@@ -1348,12 +1351,12 @@ const ContentDetail: React.FC = () => {
                 >
                   Download Report
                 </Button>
-                {(content.posterUrl || content.thumbnailUrl) && (
+                {(content.posterCdnUrl || content.posterUrl || content.thumbnailCdnUrl || content.thumbnailUrl) && (
                   <Button
                     block
                     size="large"
                     icon={<DownloadOutlined />}
-                    href={content.posterUrl || content.thumbnailUrl}
+                    href={content.posterCdnUrl || content.posterUrl || content.thumbnailCdnUrl || content.thumbnailUrl}
                     target="_blank"
                     className="h-11"
                   >

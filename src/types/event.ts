@@ -15,8 +15,11 @@ export interface Event {
     description: string;
     descriptionHindi: string;
     image: string;
+    imageCdnUrl: string;
     bannerImage?: string;
+    bannerImageCdnUrl?: string;
     galleryImages?: string[];
+    galleryCdnUrls?: string[];
     date: string;
     endDate?: string;
     time: string;
@@ -76,7 +79,9 @@ export interface Event {
     amenitiesHindi?: string[];
     parking?: ParkingInfo;
     trailerUrl?: string;
+    trailerCdnUrl: string;
     promoVideoUrl?: string;
+    promoVideoCdnUrl: string;
     status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled' | 'postponed';
     isFeatured?: boolean;
     isTrending?: boolean;
@@ -96,10 +101,14 @@ export interface Event {
     revenue?: number;
     hasLiveStreaming?: boolean;
     liveStreamUrl?: string;
+    liveStreamCdnUrl?: string;
     hasVIPMeetGreet?: boolean;
     hasPhotoBooth?: boolean;
     hasFoodStalls?: boolean;
     hasGiftBags?: boolean;
+    trailerMetadata?: string;
+    promoVideoMetadata: string,
+    liveStreamMetadata: string,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

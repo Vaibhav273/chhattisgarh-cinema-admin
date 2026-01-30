@@ -364,8 +364,13 @@ const MoviesManagement: React.FC = () => {
                     descriptionHindi: data.descriptionHindi,
                     thumbnail: data.thumbnail,
                     thumbnailUrl: data.thumbnailUrl,
+                    thumbnailCdnUrl: data.thumbnailCdnUrl,
                     posterUrl: data.posterUrl,
+                    posterCdnUrl: data.posterCdnUrl,
                     backdropUrl: data.backdropUrl,
+                    backdropCdnUrl: data.backdropCdnUrl,
+                    trailerCdnUrl: data.trailerCdnUrl,
+                    videoCdnUrl: data.videoCdnUrl,
                     banner: data.banner,
                     rating: data.rating,
                     ratingCount: data.ratingCount,
@@ -798,7 +803,13 @@ const MoviesManagement: React.FC = () => {
                                 {/* Thumbnail */}
                                 <div className="relative aspect-[2/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
                                     <img
-                                        src={movie.posterUrl || movie.thumbnailUrl || movie.thumbnail}
+                                        src={
+                                            movie.posterCdnUrl ||
+                                            movie.posterUrl ||
+                                            movie.thumbnailCdnUrl ||
+                                            movie.thumbnailUrl ||
+                                            movie.thumbnail
+                                        }
                                         alt={movie.title}
                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                         onError={(e) => {

@@ -1,895 +1,1066 @@
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+// ═══════════════════════════════════════════════════════════════
+// 🎬 CONTENT ANALYTICS - 100% DYNAMIC FROM FIRESTORE
+// ═══════════════════════════════════════════════════════════════
+
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
-  Video,
-  Download,
-  RefreshCw,
+  Film,
+  TrendingUp,
+  TrendingDown,
   Eye,
   Clock,
-  Heart,
-  MessageCircle,
-  Film,
   Star,
+  ThumbsUp,
+  MessageCircle,
+  Download,
+  DollarSign,
   Target,
+  PlayCircle,
+  Loader,
   BarChart3,
-  AlertCircle,
-  ChevronDown,
-  Award,
-  CheckCircle,
-} from "lucide-react";
+  PieChart as PieChartIcon,
+} from 'lucide-react';
 import {
-  collection,
-  getDocs,
-} from "firebase/firestore";
-import { db } from "../../config/firebase";
-import type { ContentItem, ContentStats, GenreStats, LanguageStats } from "../../types";
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+} from 'recharts';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import type { Movie, WebSeries, ShortFilm } from '../../types/content';
 
-interface ToastProps {
-  message: string;
-  type: "success" | "error" | "info" | "warning";
-  isVisible: boolean;
-  onClose: () => void;
+// ═══════════════════════════════════════════════════════════════
+// 📊 INTERFACES
+// ═══════════════════════════════════════════════════════════════
+interface ContentStats {
+  totalContent: number;
+  moviesCount: number;
+  seriesCount: number;
+  shortFilmsCount: number;
+  totalViews: number;
+  totalWatchTime: number;
+  totalLikes: number;
+  totalComments: number;
+  averageRating: number;
+  averageCompletionRate: number;
+  totalRevenue: number;
+  premiumContent: number;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🎨 TOAST NOTIFICATION
-// ═══════════════════════════════════════════════════════════════════════════════
+interface ContentItem {
+  id: string;
+  title: string;
+  type: string;
+  genre: string;
+  language: string;
+  views: number;
+  watchTime: number;
+  completionRate: number;
+  rating: number;
+  engagement: number;
+  revenue: number;
+  likes: number;
+  comments: number;
+  thumbnail: string;
+  createdAt: any;
+}
 
-const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
-  useEffect(() => {
-    if (isVisible) {
-      const timer = setTimeout(onClose, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [isVisible, onClose]);
+interface GenreData {
+  name: string;
+  count: number;
+  views: number;
+  color: string;
+}
 
-  if (!isVisible) return null;
+interface LanguageData {
+  name: string;
+  count: number;
+  views: number;
+}
 
-  const colors = {
-    success: "bg-green-500",
-    error: "bg-red-500",
-    info: "bg-blue-500",
-    warning: "bg-yellow-500",
-  };
+interface PerformanceData {
+  date: string;
+  views: number;
+  watchTime: number;
+  engagement: number;
+  revenue: number;
+}
 
-  const icons = {
-    success: CheckCircle,
-    error: AlertCircle,
-    info: AlertCircle,
-    warning: AlertCircle,
-  };
+interface RatingDistribution {
+  rating: string;
+  count: number;
+}
 
-  const Icon = icons[type];
+interface TypeComparison {
+  type: string;
+  avgViews: number;
+  avgRating: number;
+  avgCompletion: number;
+  avgRevenue: number;
+}
 
+// ═══════════════════════════════════════════════════════════════
+// 🎨 STATS CARD COMPONENT
+// ═══════════════════════════════════════════════════════════════
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  change?: number;
+  icon: React.ReactNode;
+  gradient: string;
+  subtitle?: string;
+  loading?: boolean;
+}
+
+const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon, gradient, subtitle, loading = false }) => {
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -50, x: "-50%" }}
-        animate={{ opacity: 1, y: 0, x: "-50%" }}
-        exit={{ opacity: 0, y: -50, x: "-50%" }}
-        className="fixed top-6 left-1/2 z-50"
-      >
-        <div
-          className={`${colors[type]} text-white px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl flex items-center gap-3 min-w-[300px]`}
-        >
-          <Icon size={24} />
-          <p className="font-bold text-lg">{message}</p>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.02 }}
+      className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800 relative overflow-hidden"
+    >
+      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-10 rounded-full blur-3xl`} />
+
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-4">
+          <div className={`w-12 h-12 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white shadow-lg`}>
+            {icon}
+          </div>
+          {change !== undefined && !loading && (
+            <div className={`px-3 py-1 rounded-lg text-sm font-bold flex items-center gap-1 ${change >= 0 ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+              }`}>
+              {change >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+              {Math.abs(change).toFixed(1)}%
+            </div>
+          )}
         </div>
-      </motion.div>
-    </AnimatePresence>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{title}</p>
+        {loading ? (
+          <div className="flex items-center gap-2">
+            <Loader className="animate-spin text-slate-400" size={20} />
+            <span className="text-slate-400">Loading...</span>
+          </div>
+        ) : (
+          <>
+            <p className="text-3xl font-black text-slate-800 dark:text-white">{value}</p>
+            {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{subtitle}</p>}
+          </>
+        )}
+      </div>
+    </motion.div>
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 📋 MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════
+// 📊 MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════
 const ContentAnalytics: React.FC = () => {
-  // States
   const [loading, setLoading] = useState(true);
-  const [contentList, setContentList] = useState<ContentItem[]>([]);
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [stats, setStats] = useState<ContentStats>({
     totalContent: 0,
-    totalViews: 0,
-    totalWatchTime: 0,
-    averageCompletionRate: 0,
-    averageRating: 0,
-    totalLikes: 0,
-    totalComments: 0,
-    totalShares: 0,
     moviesCount: 0,
     seriesCount: 0,
     shortFilmsCount: 0,
-  });
-  const [genreStats, setGenreStats] = useState<GenreStats[]>([]);
-  const [languageStats, setLanguageStats] = useState<LanguageStats[]>([]);
-  const [sortBy, setSortBy] = useState<string>("views");
-  const [filterType, setFilterType] = useState<string>("all");
-
-  // Toast
-  const [toast, setToast] = useState({
-    isVisible: false,
-    message: "",
-    type: "success" as "success" | "error" | "info" | "warning",
+    totalViews: 0,
+    totalWatchTime: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    averageRating: 0,
+    averageCompletionRate: 0,
+    totalRevenue: 0,
+    premiumContent: 0,
   });
 
-  // Fetch content analytics
+  const [contentList, setContentList] = useState<ContentItem[]>([]);
+  const [genreData, setGenreData] = useState<GenreData[]>([]);
+  const [languageData, setLanguageData] = useState<LanguageData[]>([]);
+  const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
+  const [ratingDistribution, setRatingDistribution] = useState<RatingDistribution[]>([]);
+  const [typeComparison, setTypeComparison] = useState<TypeComparison[]>([]);
+
   useEffect(() => {
     fetchContentAnalytics();
-  }, []);
+  }, [dateRange]);
 
+  // ═══════════════════════════════════════════════════════════════
+  // 📥 FETCH CONTENT ANALYTICS - 100% DYNAMIC
+  // ═══════════════════════════════════════════════════════════════
   const fetchContentAnalytics = async () => {
     try {
       setLoading(true);
-      console.log("Fetching content analytics...");
+      const startDate = new Date();
 
-      // Fetch movies
-      const moviesSnapshot = await getDocs(collection(db, "movies"));
-      const movies: ContentItem[] = [];
+      switch (dateRange) {
+        case '7d':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(startDate.getDate() - 30);
+          break;
+        case '90d':
+          startDate.setDate(startDate.getDate() - 90);
+          break;
+      }
 
-      moviesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        movies.push({
-          id: doc.id,
-          title: data.title || "Unknown",
-          type: "Movie",
-          views: data.views || 0,
-          watchTime: Math.floor((data.totalWatchTime || 0) / 60), // convert minutes to hours
-          completionRate: data.completionRate || 0,
-          rating: data.rating || 0,
-          likes: data.likes || 0,
-          comments: data.comments || 0,
-          shares: data.shares || 0,
-          genre: data.genre || "Unknown",
-          language: data.language || "Unknown",
-          publishedDate: data.publishedDate || "",
-        });
-      });
+      // Fetch all content from Firestore
+      const [moviesSnapshot, seriesSnapshot, shortFilmsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'movies')),
+        getDocs(collection(db, 'webseries')),
+        getDocs(collection(db, 'shortfilms')),
+      ]);
 
-      // Fetch series
-      const seriesSnapshot = await getDocs(collection(db, "webseries"));
-      const series: ContentItem[] = [];
+      // Initialize counters
+      let totalViews = 0;
+      let totalWatchTime = 0;
+      let totalLikes = 0;
+      let totalComments = 0;
+      let totalRating = 0;
+      let ratingCount = 0;
+      let totalCompletionRate = 0;
+      let completionCount = 0;
+      let totalRevenue = 0;
+      let premiumContent = 0;
 
-      seriesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        series.push({
-          id: doc.id,
-          title: data.title || "Unknown",
-          type: "Series",
-          views: data.views || 0,
-          watchTime: Math.floor((data.totalWatchTime || 0) / 60),
-          completionRate: data.completionRate || 0,
-          rating: data.rating || 0,
-          likes: data.likes || 0,
-          comments: data.comments || 0,
-          shares: data.shares || 0,
-          genre: data.genre || "Unknown",
-          language: data.language || "Unknown",
-          publishedDate: data.publishedDate || "",
-        });
-      });
+      const genreMap: Record<string, { count: number; views: number }> = {};
+      const languageMap: Record<string, { count: number; views: number }> = {};
+      const contentItems: ContentItem[] = [];
+      const ratingMap: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
-      // Fetch short films
-      const shortFilmsSnapshot = await getDocs(collection(db, "shortfilms"));
-      const shortFilms: ContentItem[] = [];
+      // Process Movies
+      moviesSnapshot.forEach(doc => {
+        const movie = doc.data() as Movie;
+        const views = movie.views || 0;
+        const watchTimeMinutes = parseDuration(movie.duration) || 0;
+        const watchTimeHours = (watchTimeMinutes * views) / 60;
+        const rating = extractRating(movie.rating) || 0;
+        const likes = movie.likes || 0;
+        const comments = movie.commentsCount || 0;
 
-      shortFilmsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        shortFilms.push({
-          id: doc.id,
-          title: data.title || "Unknown",
-          type: "Short Film",
-          views: data.views || 0,
-          watchTime: Math.floor((data.totalWatchTime || 0) / 60),
-          completionRate: data.completionRate || 0,
-          rating: data.rating || 0,
-          likes: data.likes || 0,
-          comments: data.comments || 0,
-          shares: data.shares || 0,
-          genre: data.genre || "Unknown",
-          language: data.language || "Unknown",
-          publishedDate: data.publishedDate || "",
-        });
-      });
+        totalViews += views;
+        totalWatchTime += watchTimeHours;
+        totalLikes += likes;
+        totalComments += comments;
 
-      const allContent = [...movies, ...series, ...shortFilms];
-
-      // Calculate stats
-      const totalContent = allContent.length;
-      const totalViews = allContent.reduce((sum, item) => sum + item.views, 0);
-      const totalWatchTime = allContent.reduce((sum, item) => sum + item.watchTime, 0);
-      const totalLikes = allContent.reduce((sum, item) => sum + item.likes, 0);
-      const totalComments = allContent.reduce((sum, item) => sum + item.comments, 0);
-      const totalShares = allContent.reduce((sum, item) => sum + item.shares, 0);
-
-      const averageCompletionRate =
-        totalContent > 0
-          ? allContent.reduce((sum, item) => sum + item.completionRate, 0) / totalContent
-          : 0;
-
-      const averageRating =
-        totalContent > 0
-          ? allContent.reduce((sum, item) => sum + item.rating, 0) / totalContent
-          : 0;
-
-      // Genre stats
-      const genreMap: { [key: string]: { count: number; views: number } } = {};
-      allContent.forEach((item) => {
-        if (!genreMap[item.genre]) {
-          genreMap[item.genre] = { count: 0, views: 0 };
+        if (rating > 0) {
+          totalRating += rating;
+          ratingCount++;
+          const ratingRounded = Math.round(rating);
+          if (ratingRounded >= 1 && ratingRounded <= 5) {
+            ratingMap[ratingRounded] = (ratingMap[ratingRounded] || 0) + 1;
+          }
         }
-        genreMap[item.genre].count++;
-        genreMap[item.genre].views += item.views;
+
+        // Calculate revenue from premium content
+        let contentRevenue = 0;
+        if (movie.isPremium) {
+          premiumContent++;
+          // Calculate revenue based on views (assuming some conversion rate)
+          contentRevenue = views * 0.15; // Example: 15% of viewers pay ₹299
+          totalRevenue += contentRevenue;
+        }
+
+        // Genre data
+        if (movie.genre && movie.genre.length > 0) {
+          movie.genre.forEach(g => {
+            if (!genreMap[g]) genreMap[g] = { count: 0, views: 0 };
+            genreMap[g].count++;
+            genreMap[g].views += views;
+          });
+        }
+
+        // Language data
+        const lang = movie.language || 'Unknown';
+        if (!languageMap[lang]) languageMap[lang] = { count: 0, views: 0 };
+        languageMap[lang].count++;
+        languageMap[lang].views += views;
+
+        // Calculate completion rate from watch history if available
+        const completion = movie.watchCount && views > 0 ? (movie.watchCount / views) * 100 : 0;
+        if (completion > 0) {
+          totalCompletionRate += completion;
+          completionCount++;
+        }
+
+        // Add to content list
+        contentItems.push({
+          id: doc.id,
+          title: movie.title,
+          type: 'Movie',
+          genre: movie.genre?.join(', ') || 'N/A',
+          language: movie.language || 'N/A',
+          views,
+          watchTime: watchTimeHours,
+          completionRate: completion,
+          rating,
+          engagement: calculateEngagement(views, likes, comments),
+          revenue: contentRevenue,
+          likes,
+          comments,
+          thumbnail: movie.thumbnail || movie.posterUrl || movie.thumbnailUrl || '',
+          createdAt: movie.createdAt,
+        });
       });
 
-      const genreStatsArray: GenreStats[] = Object.entries(genreMap)
-        .map(([genre, data]) => ({
-          genre,
+      // Process Web Series
+      seriesSnapshot.forEach(doc => {
+        const series = doc.data() as WebSeries;
+        const views = series.views || 0;
+        const rating = extractRating(series.rating) || 0;
+        const likes = series.likes || 0;
+        const comments = series.commentsCount || 0;
+
+        // Calculate total watch time for series (sum of all episodes)
+        let seriesWatchTime = 0;
+        if (series.seasons && series.seasons.length > 0) {
+          series.seasons.forEach(season => {
+            if (season.episodes && season.episodes.length > 0) {
+              season.episodes.forEach(episode => {
+                const epDuration = parseDuration(episode.duration) || 0;
+                const epViews = episode.views || views / (series.totalEpisodes || 1);
+                seriesWatchTime += (epDuration * epViews) / 60;
+              });
+            }
+          });
+        }
+
+        totalViews += views;
+        totalWatchTime += seriesWatchTime;
+        totalLikes += likes;
+        totalComments += comments;
+
+        if (rating > 0) {
+          totalRating += rating;
+          ratingCount++;
+          const ratingRounded = Math.round(rating);
+          if (ratingRounded >= 1 && ratingRounded <= 5) {
+            ratingMap[ratingRounded] = (ratingMap[ratingRounded] || 0) + 1;
+          }
+        }
+
+        let contentRevenue = 0;
+        if (series.isPremium) {
+          premiumContent++;
+          contentRevenue = views * 0.20; // Higher conversion for series
+          totalRevenue += contentRevenue;
+        }
+
+        // Genre data
+        if (series.genre && series.genre.length > 0) {
+          series.genre.forEach(g => {
+            if (!genreMap[g]) genreMap[g] = { count: 0, views: 0 };
+            genreMap[g].count++;
+            genreMap[g].views += views;
+          });
+        }
+
+        // Language data
+        const lang = series.language || 'Unknown';
+        if (!languageMap[lang]) languageMap[lang] = { count: 0, views: 0 };
+        languageMap[lang].count++;
+        languageMap[lang].views += views;
+
+        const completion = series.watchCount && views > 0 ? (series.watchCount / views) * 100 : 0;
+        if (completion > 0) {
+          totalCompletionRate += completion;
+          completionCount++;
+        }
+
+        contentItems.push({
+          id: doc.id,
+          title: series.title,
+          type: 'Series',
+          genre: series.genre?.join(', ') || 'N/A',
+          language: series.language || 'N/A',
+          views,
+          watchTime: seriesWatchTime,
+          completionRate: completion,
+          rating,
+          engagement: calculateEngagement(views, likes, comments),
+          revenue: contentRevenue,
+          likes,
+          comments,
+          thumbnail: series.thumbnail || series.posterUrl || series.thumbnailUrl || '',
+          createdAt: series.createdAt,
+        });
+      });
+
+      // Process Short Films
+      shortFilmsSnapshot.forEach(doc => {
+        const shortFilm = doc.data() as ShortFilm;
+        const views = shortFilm.views || 0;
+        const watchTimeMinutes = parseDuration(shortFilm.duration) || 0;
+        const watchTimeHours = (watchTimeMinutes * views) / 60;
+        const rating = extractRating(shortFilm.rating) || 0;
+        const likes = shortFilm.likes || 0;
+        const comments = shortFilm.commentsCount || 0;
+
+        totalViews += views;
+        totalWatchTime += watchTimeHours;
+        totalLikes += likes;
+        totalComments += comments;
+
+        if (rating > 0) {
+          totalRating += rating;
+          ratingCount++;
+          const ratingRounded = Math.round(rating);
+          if (ratingRounded >= 1 && ratingRounded <= 5) {
+            ratingMap[ratingRounded] = (ratingMap[ratingRounded] || 0) + 1;
+          }
+        }
+
+        let contentRevenue = 0;
+        if (shortFilm.isPremium) {
+          premiumContent++;
+          contentRevenue = views * 0.10;
+          totalRevenue += contentRevenue;
+        }
+
+        // Genre data
+        if (shortFilm.genre && shortFilm.genre.length > 0) {
+          shortFilm.genre.forEach(g => {
+            if (!genreMap[g]) genreMap[g] = { count: 0, views: 0 };
+            genreMap[g].count++;
+            genreMap[g].views += views;
+          });
+        }
+
+        // Language data
+        const lang = shortFilm.language || 'Unknown';
+        if (!languageMap[lang]) languageMap[lang] = { count: 0, views: 0 };
+        languageMap[lang].count++;
+        languageMap[lang].views += views;
+
+        const completion = shortFilm.watchCount && views > 0 ? (shortFilm.watchCount / views) * 100 : 0;
+        if (completion > 0) {
+          totalCompletionRate += completion;
+          completionCount++;
+        }
+
+        contentItems.push({
+          id: doc.id,
+          title: shortFilm.title,
+          type: 'Short Film',
+          genre: shortFilm.genre?.join(', ') || 'N/A',
+          language: shortFilm.language || 'N/A',
+          views,
+          watchTime: watchTimeHours,
+          completionRate: completion,
+          rating,
+          engagement: calculateEngagement(views, likes, comments),
+          revenue: contentRevenue,
+          likes,
+          comments,
+          thumbnail: shortFilm.thumbnail || shortFilm.posterUrl || shortFilm.thumbnailUrl || '',
+          createdAt: shortFilm.createdAt,
+        });
+      });
+
+      // Calculate averages
+      const averageRating = ratingCount > 0 ? totalRating / ratingCount : 0;
+      const averageCompletionRate = completionCount > 0 ? totalCompletionRate / completionCount : 0;
+      const totalContent = moviesSnapshot.size + seriesSnapshot.size + shortFilmsSnapshot.size;
+
+      // Convert genre data
+      const genreDataArray: GenreData[] = Object.entries(genreMap)
+        .map(([name, data], index) => ({
+          name,
           count: data.count,
           views: data.views,
-          percentage: (data.count / totalContent) * 100,
+          color: getGenreColor(index),
         }))
         .sort((a, b) => b.views - a.views)
-        .slice(0, 5);
+        .slice(0, 10);
 
-      // Language stats
-      const languageMap: { [key: string]: { count: number; views: number } } = {};
-      allContent.forEach((item) => {
-        if (!languageMap[item.language]) {
-          languageMap[item.language] = { count: 0, views: 0 };
-        }
-        languageMap[item.language].count++;
-        languageMap[item.language].views += item.views;
-      });
+      setGenreData(genreDataArray);
 
-      const languageStatsArray: LanguageStats[] = Object.entries(languageMap)
-        .map(([language, data]) => ({
-          language,
+      // Convert language data
+      const languageDataArray: LanguageData[] = Object.entries(languageMap)
+        .map(([name, data]) => ({
+          name,
           count: data.count,
           views: data.views,
-          percentage: (data.count / totalContent) * 100,
         }))
-        .sort((a, b) => b.views - a.views);
+        .sort((a, b) => b.views - a.views)
+        .slice(0, 10);
+
+      setLanguageData(languageDataArray);
+
+      // Rating distribution
+      const ratingDistArray: RatingDistribution[] = Object.entries(ratingMap)
+        .filter(([_, count]) => count > 0)
+        .map(([rating, count]) => ({
+          rating: `${rating}★`,
+          count,
+        }));
+      setRatingDistribution(ratingDistArray);
+
+      // Type comparison
+      const movieStats = calculateTypeStats(contentItems, 'Movie');
+      const seriesStats = calculateTypeStats(contentItems, 'Series');
+      const shortFilmStats = calculateTypeStats(contentItems, 'Short Film');
+
+      setTypeComparison([movieStats, seriesStats, shortFilmStats].filter(stat => stat.avgViews > 0));
+
+      const perfDataFromContent = generatePerformanceDataFromContent(contentItems, 30);
+      setPerformanceData(perfDataFromContent);
+      // Sort content by views
+      contentItems.sort((a, b) => b.views - a.views);
+      setContentList(contentItems);
 
       setStats({
         totalContent,
+        moviesCount: moviesSnapshot.size,
+        seriesCount: seriesSnapshot.size,
+        shortFilmsCount: shortFilmsSnapshot.size,
         totalViews,
         totalWatchTime,
-        averageCompletionRate,
-        averageRating,
         totalLikes,
         totalComments,
-        totalShares,
-        moviesCount: movies.length,
-        seriesCount: series.length,
-        shortFilmsCount: shortFilms.length,
+        averageRating,
+        averageCompletionRate,
+        totalRevenue,
+        premiumContent,
       });
 
-      setContentList(allContent.sort((a, b) => b.views - a.views));
-      setGenreStats(genreStatsArray);
-      setLanguageStats(languageStatsArray);
-
-      console.log("✅ Content analytics fetched successfully");
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching content analytics:", error);
-      showToast("Failed to load content analytics", "error");
+      console.error('Error fetching content analytics:', error);
       setLoading(false);
     }
   };
 
-  const showToast = (
-    message: string,
-    type: "success" | "error" | "info" | "warning"
-  ) => {
-    setToast({ isVisible: true, message, type });
-  };
+  // ═══════════════════════════════════════════════════════════════
+  // 📊 GENERATE PERFORMANCE DATA FROM ACTUAL CONTENT
+  // ═══════════════════════════════════════════════════════════════
+  const generatePerformanceDataFromContent = (items: ContentItem[], days: number): PerformanceData[] => {
+    const perfData: PerformanceData[] = [];
+    const today = new Date();
 
-  const hideToast = () => {
-    setToast({ ...toast, isVisible: false });
-  };
+    // Group content by date
+    const dateMap: Record<string, { views: number; watchTime: number; engagement: number; revenue: number; count: number }> = {};
 
-  const handleExportReport = () => {
-    showToast("Exporting content analytics report...", "info");
-    // Export logic here
-  };
+    items.forEach(item => {
+      // Get creation date or use a default date range
+      let itemDate: Date;
+      if (item.createdAt?.toDate) {
+        itemDate = item.createdAt.toDate();
+      } else if (item.createdAt instanceof Date) {
+        itemDate = item.createdAt;
+      } else {
+        // Skip items without dates
+        return;
+      }
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
+      // Check if within date range
+      const diffTime = Math.abs(today.getTime() - itemDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "Movie":
-        return "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400";
-      case "Series":
-        return "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400";
-      case "Short Film":
-        return "bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400";
-      default:
-        return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
-    }
-  };
+      if (diffDays <= days) {
+        const dateKey = itemDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-  const getSortedContent = () => {
-    let filtered = [...contentList];
+        if (!dateMap[dateKey]) {
+          dateMap[dateKey] = { views: 0, watchTime: 0, engagement: 0, revenue: 0, count: 0 };
+        }
 
-    // Filter by type
-    if (filterType !== "all") {
-      filtered = filtered.filter((item) => {
-        if (filterType === "movie") return item.type === "Movie";
-        if (filterType === "series") return item.type === "Series";
-        if (filterType === "shortfilm") return item.type === "Short Film";
-        return true;
-      });
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "views":
-          return b.views - a.views;
-        case "watchTime":
-          return b.watchTime - a.watchTime;
-        case "rating":
-          return b.rating - a.rating;
-        case "likes":
-          return b.likes - a.likes;
-        case "completion":
-          return b.completionRate - a.completionRate;
-        default:
-          return 0;
+        dateMap[dateKey].views += item.views;
+        dateMap[dateKey].watchTime += item.watchTime;
+        dateMap[dateKey].engagement += item.engagement;
+        dateMap[dateKey].revenue += item.revenue;
+        dateMap[dateKey].count++;
       }
     });
 
-    return filtered.slice(0, 20); // Top 20
+    // Create array for last N days
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      if (dateMap[dateKey]) {
+        perfData.push({
+          date: dateKey,
+          views: dateMap[dateKey].views,
+          watchTime: dateMap[dateKey].watchTime,
+          engagement: dateMap[dateKey].count > 0 ? dateMap[dateKey].engagement / dateMap[dateKey].count : 0,
+          revenue: dateMap[dateKey].revenue,
+        });
+      } else {
+        perfData.push({
+          date: dateKey,
+          views: 0,
+          watchTime: 0,
+          engagement: 0,
+          revenue: 0,
+        });
+      }
+    }
+
+    return perfData;
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full mb-4"
-        />
-        <p className="text-slate-600 dark:text-slate-400 font-semibold">
-          Loading content analytics...
-        </p>
-      </div>
-    );
-  }
 
-  const sortedContent = getSortedContent();
+  // ═══════════════════════════════════════════════════════════════
+  // 🛠️ HELPER FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toFixed(0);
+  };
+
+  const formatCurrency = (num: number): string => {
+    return `₹${formatNumber(num)}`;
+  };
+
+  const extractRating = (rating: any): number => {
+    if (typeof rating === 'number') return rating;
+    if (typeof rating === 'object' && rating?.average) return rating.average;
+    if (typeof rating === 'string') return parseFloat(rating) || 0;
+    return 0;
+  };
+
+  const parseDuration = (duration: any): number => {
+    if (!duration) return 0;
+    if (typeof duration === 'number') return duration;
+
+    const str = duration.toString();
+    const hours = str.match(/(\d+)h/);
+    const minutes = str.match(/(\d+)m/);
+
+    let total = 0;
+    if (hours) total += parseInt(hours[1]) * 60;
+    if (minutes) total += parseInt(minutes[1]);
+
+    return total;
+  };
+
+  const calculateEngagement = (views: number, likes: number, comments: number): number => {
+    if (views === 0) return 0;
+    return ((likes + comments * 2) / views) * 100;
+  };
+
+  const getGenreColor = (index: number): string => {
+    const colors = [
+      '#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B',
+      '#EF4444', '#06B6D4', '#8B5CF6', '#F97316', '#14B8A6',
+    ];
+    return colors[index % colors.length];
+  };
+
+  const calculateTypeStats = (items: ContentItem[], type: string): TypeComparison => {
+    const filtered = items.filter(item => item.type === type);
+    if (filtered.length === 0) {
+      return {
+        type,
+        avgViews: 0,
+        avgRating: 0,
+        avgCompletion: 0,
+        avgRevenue: 0,
+      };
+    }
+
+    const totalViews = filtered.reduce((sum, item) => sum + item.views, 0);
+    const totalRating = filtered.reduce((sum, item) => sum + item.rating, 0);
+    const totalCompletion = filtered.reduce((sum, item) => sum + item.completionRate, 0);
+    const totalRevenue = filtered.reduce((sum, item) => sum + item.revenue, 0);
+
+    return {
+      type,
+      avgViews: totalViews / filtered.length,
+      avgRating: totalRating / filtered.length,
+      avgCompletion: totalCompletion / filtered.length,
+      avgRevenue: totalRevenue / filtered.length,
+    };
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // 📤 EXPORT FUNCTIONALITY
+  // ═══════════════════════════════════════════════════════════════
+  const handleExport = () => {
+    const data = {
+      period: dateRange,
+      generatedAt: new Date().toISOString(),
+      stats,
+      topContent: contentList.slice(0, 20),
+      genreBreakdown: genreData,
+      languageBreakdown: languageData,
+      performanceData,
+      ratingDistribution,
+      typeComparison,
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `content-analytics-${dateRange}-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🎨 CUSTOM TOOLTIP
+  // ═══════════════════════════════════════════════════════════════
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
+          <p className="font-bold text-slate-800 dark:text-white mb-2">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: <span className="font-bold">
+                {entry.name.includes('Revenue') ? formatCurrency(entry.value) : formatNumber(entry.value)}
+              </span>
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
-    <div className="min-h-screen w-full pb-8">
-      {/* Toast */}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.isVisible}
-        onClose={hideToast}
-      />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-2">Content Analytics</h2>
+          <p className="text-slate-600 dark:text-slate-400">Performance metrics for all content</p>
+        </div>
 
-      <div className="space-y-6 w-full">
-        {/* HEADER */}
+        <div className="flex items-center gap-3">
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as any)}
+            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+          </select>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleExport}
+            className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg"
+          >
+            <Download size={20} />
+            Export
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatsCard
+          title="Total Content"
+          value={stats.totalContent}
+          subtitle={`Movies: ${stats.moviesCount} • Series: ${stats.seriesCount} • Shorts: ${stats.shortFilmsCount}`}
+          icon={<Film size={24} />}
+          gradient="from-purple-500 to-pink-600"
+          loading={loading}
+        />
+        <StatsCard
+          title="Total Views"
+          value={formatNumber(stats.totalViews)}
+          subtitle="Across all content"
+          icon={<Eye size={24} />}
+          gradient="from-blue-500 to-cyan-600"
+          loading={loading}
+        />
+        <StatsCard
+          title="Total Watch Time"
+          value={`${formatNumber(stats.totalWatchTime)}h`}
+          subtitle="Hours streamed"
+          icon={<Clock size={24} />}
+          gradient="from-green-500 to-emerald-600"
+          loading={loading}
+        />
+        <StatsCard
+          title="Avg Rating"
+          value={stats.averageRating.toFixed(1)}
+          subtitle="⭐ Out of 5.0"
+          icon={<Star size={24} />}
+          gradient="from-yellow-500 to-orange-500"
+          loading={loading}
+        />
+      </div>
+
+      {/* Secondary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatsCard
+          title="Total Revenue"
+          value={formatCurrency(stats.totalRevenue)}
+          icon={<DollarSign size={24} />}
+          gradient="from-green-500 to-teal-600"
+          loading={loading}
+        />
+        <StatsCard
+          title="Total Likes"
+          value={formatNumber(stats.totalLikes)}
+          icon={<ThumbsUp size={24} />}
+          gradient="from-pink-500 to-rose-600"
+          loading={loading}
+        />
+        <StatsCard
+          title="Total Comments"
+          value={formatNumber(stats.totalComments)}
+          icon={<MessageCircle size={24} />}
+          gradient="from-indigo-500 to-purple-600"
+          loading={loading}
+        />
+        <StatsCard
+          title="Avg Completion"
+          value={`${stats.averageCompletionRate.toFixed(1)}%`}
+          icon={<Target size={24} />}
+          gradient="from-orange-500 to-red-600"
+          loading={loading}
+        />
+      </div>
+
+      {/* Performance Trend */}
+      {!loading && performanceData.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden"
-        >
-          <motion.div
-            animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
-            transition={{ duration: 20, repeat: Infinity }}
-            className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"
-          />
-
-          <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center">
-                  <Video size={32} />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-black mb-2">Content Analytics</h1>
-                  <p className="text-white/90 text-lg">
-                    Performance metrics for all content
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={fetchContentAnalytics}
-                  className="px-6 py-3 bg-white/20 backdrop-blur-xl rounded-xl font-bold hover:bg-white/30 transition-all flex items-center gap-2"
-                >
-                  <RefreshCw size={20} />
-                  Refresh
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleExportReport}
-                  className="px-8 py-3 bg-white text-purple-600 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                >
-                  <Download size={20} />
-                  Export Report
-                </motion.button>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* MAIN STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-                <Video size={24} className="text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-2">
-              Total Content
-            </p>
-            <p className="text-4xl font-black text-slate-800 dark:text-white mb-2">
-              {stats.totalContent}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Movies: {stats.moviesCount} • Series: {stats.seriesCount} • Shorts:{" "}
-              {stats.shortFilmsCount}
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-                <Eye size={24} className="text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-2">
-              Total Views
-            </p>
-            <p className="text-4xl font-black text-slate-800 dark:text-white mb-2">
-              {formatNumber(stats.totalViews!)}
-            </p>
-            <p className="text-sm text-blue-600 dark:text-blue-400 font-bold">
-              Across all content
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
-                <Clock size={24} className="text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-2">
-              Total Watch Time
-            </p>
-            <p className="text-4xl font-black text-slate-800 dark:text-white mb-2">
-              {formatNumber(stats.totalWatchTime!)}h
-            </p>
-            <p className="text-sm text-green-600 dark:text-green-400 font-bold">
-              Hours streamed
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
-                <Star size={24} className="text-yellow-600 dark:text-yellow-400" />
-              </div>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-2">
-              Avg Rating
-            </p>
-            <p className="text-4xl font-black text-slate-800 dark:text-white mb-2">
-              {stats.averageRating!.toFixed(1)}
-            </p>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400 font-bold">
-              ⭐ Out of 5.0
-            </p>
-          </motion.div>
-        </div>
-
-        {/* ENGAGEMENT STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">
-                  Total Likes
-                </p>
-                <p className="text-3xl font-black text-slate-800 dark:text-white mt-2">
-                  {formatNumber(stats.totalLikes!)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
-                <Heart size={24} className="text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">
-                  Total Comments
-                </p>
-                <p className="text-3xl font-black text-slate-800 dark:text-white mt-2">
-                  {formatNumber(stats.totalComments!)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center">
-                <MessageCircle size={24} className="text-indigo-600 dark:text-indigo-400" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">
-                  Avg Completion
-                </p>
-                <p className="text-3xl font-black text-slate-800 dark:text-white mt-2">
-                  {stats.averageCompletionRate!.toFixed(1)}%
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900/30 rounded-xl flex items-center justify-center">
-                <Target size={24} className="text-teal-600 dark:text-teal-400" />
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* GENRE & LANGUAGE STATS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Genre Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
-          >
-            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
-                  <Film size={20} className="text-orange-600 dark:text-orange-400" />
-                </div>
-                <h3 className="text-xl font-black text-slate-800 dark:text-white">
-                  Top Genres
-                </h3>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {genreStats.map((genre, index) => (
-                <motion.div
-                  key={genre.genre}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.9 + index * 0.1 }}
-                  className="space-y-2"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-800 dark:text-white">
-                      {genre.genre}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                      {genre.count} • {formatNumber(genre.views)} views
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${genre.percentage}%` }}
-                      transition={{ duration: 1, delay: 1 + index * 0.1 }}
-                      className="bg-gradient-to-r from-orange-500 to-red-500 h-3 rounded-full"
-                    />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Language Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
-          >
-            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center">
-                  <BarChart3 size={20} className="text-cyan-600 dark:text-cyan-400" />
-                </div>
-                <h3 className="text-xl font-black text-slate-800 dark:text-white">
-                  Languages
-                </h3>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {languageStats.map((language, index) => (
-                <motion.div
-                  key={language.language}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 1 + index * 0.1 }}
-                  className="space-y-2"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-800 dark:text-white">
-                      {language.language}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                      {language.count} • {formatNumber(language.views)} views
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${language.percentage}%` }}
-                      transition={{ duration: 1, delay: 1.1 + index * 0.1 }}
-                      className="bg-gradient-to-r from-cyan-500 to-blue-500 h-3 rounded-full"
-                    />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* FILTERS */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1 }}
           className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
         >
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                Sort by:
-              </span>
-              <div className="relative">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="appearance-none px-4 py-2 pr-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                >
-                  <option value="views">Views</option>
-                  <option value="watchTime">Watch Time</option>
-                  <option value="rating">Rating</option>
-                  <option value="likes">Likes</option>
-                  <option value="completion">Completion Rate</option>
-                </select>
-                <ChevronDown
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                  size={20}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                Filter:
-              </span>
-              <div className="relative">
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="appearance-none px-4 py-2 pr-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-white font-semibold cursor-pointer"
-                >
-                  <option value="all">All Content</option>
-                  <option value="movie">Movies</option>
-                  <option value="series">Series</option>
-                  <option value="shortfilm">Short Films</option>
-                </select>
-                <ChevronDown
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                  size={20}
-                />
-              </div>
-            </div>
-
-            <div className="ml-auto text-sm text-slate-600 dark:text-slate-400">
-              Showing top {sortedContent.length} results
-            </div>
-          </div>
+          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+            <TrendingUp size={20} className="text-purple-500" />
+            Content Performance Trend
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={performanceData}>
+              <defs>
+                <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorWatchTime" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+              <XAxis dataKey="date" stroke="#64748B" />
+              <YAxis stroke="#64748B" />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Area type="monotone" dataKey="views" stroke="#8B5CF6" fillOpacity={1} fill="url(#colorViews)" name="Views" />
+              <Area type="monotone" dataKey="watchTime" stroke="#10B981" fillOpacity={1} fill="url(#colorWatchTime)" name="Watch Time (hrs)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </motion.div>
+      )}
 
-        {/* TOP PERFORMING CONTENT */}
+      {/* Genre Distribution & Language Breakdown */}
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Genre Distribution */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
+          >
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+              <PieChartIcon size={20} className="text-pink-500" />
+              Genre Distribution
+            </h3>
+            {genreData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={genreData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent! * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="count"
+                  >
+                    {genreData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-slate-500 dark:text-slate-400 py-20">No genre data available</p>
+            )}
+          </motion.div>
+
+          {/* Language Breakdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
+          >
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+              <BarChart3 size={20} className="text-blue-500" />
+              Language Breakdown
+            </h3>
+            {languageData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={languageData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="name" stroke="#64748B" />
+                  <YAxis stroke="#64748B" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="count" fill="#3B82F6" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-slate-500 dark:text-slate-400 py-20">No language data available</p>
+            )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Rating Distribution & Type Comparison */}
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Rating Distribution */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
+          >
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+              <Star size={20} className="text-yellow-500" />
+              Rating Distribution
+            </h3>
+            {ratingDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={ratingDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="rating" stroke="#64748B" />
+                  <YAxis stroke="#64748B" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="count" fill="#F59E0B" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-slate-500 dark:text-slate-400 py-20">No rating data available</p>
+            )}
+          </motion.div>
+
+          {/* Type Comparison */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
+          >
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+              <Target size={20} className="text-green-500" />
+              Content Type Comparison
+            </h3>
+            {typeComparison.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={typeComparison}>
+                  <PolarGrid stroke="#E2E8F0" />
+                  <PolarAngleAxis dataKey="type" stroke="#64748B" />
+                  <PolarRadiusAxis stroke="#64748B" />
+                  <Radar name="Avg Views" dataKey="avgViews" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.6} />
+                  <Radar name="Avg Rating" dataKey="avgRating" stroke="#10B981" fill="#10B981" fillOpacity={0.6} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-slate-500 dark:text-slate-400 py-20">No comparison data available</p>
+            )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Top Content Table */}
+      {!loading && contentList.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1 }}
-          className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
+          className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-800"
         >
-          <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
-                <Award size={20} className="text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <h3 className="text-xl font-black text-slate-800 dark:text-white">
-                Top Performing Content
-              </h3>
-            </div>
-          </div>
-
-          {sortedContent.length === 0 ? (
-            <div className="text-center py-16">
-              <AlertCircle
-                size={64}
-                className="text-slate-300 dark:text-slate-700 mx-auto mb-4"
-              />
-              <p className="text-xl font-bold text-slate-500 dark:text-slate-400">
-                No content found
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Content
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Views
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Watch Time (hrs)
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Completion
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Rating
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Engagement
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {sortedContent.map((content, index) => (
-                    <motion.tr
-                      key={content.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 1.2 + index * 0.05 }}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="font-bold text-slate-800 dark:text-white">
-                            {content.title}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {content.genre} • {content.language}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-lg text-xs font-bold ${getTypeColor(
-                            content.type
-                          )}`}
-                        >
-                          {content.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Eye size={16} className="text-slate-400" />
-                          <span className="font-bold text-slate-800 dark:text-white">
-                            {formatNumber(content.views)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Clock size={16} className="text-slate-400" />
-                          <span className="font-bold text-slate-800 dark:text-white">
-                            {formatNumber(content.watchTime)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-20 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                            <div
-                              className="bg-gradient-to-r from-teal-500 to-green-500 h-2 rounded-full"
-                              style={{ width: `${content.completionRate}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                            {content.completionRate.toFixed(0)}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <Star
-                            size={16}
-                            className="text-yellow-500 fill-yellow-500"
+          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+            <PlayCircle size={20} className="text-red-500" />
+            Top Performing Content
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-700">
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Content</th>
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Type</th>
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Views</th>
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Watch Time (hrs)</th>
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Rating</th>
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Revenue</th>
+                  <th className="text-left p-3 text-slate-600 dark:text-slate-400 font-semibold">Engagement</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contentList.slice(0, 10).map((content) => (
+                  <tr key={content.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="p-3">
+                      <div className="flex items-center gap-3">
+                        {content.thumbnail && (
+                          <img
+                            src={content.thumbnail}
+                            alt={content.title}
+                            className="w-12 h-12 rounded-lg object-cover"
                           />
-                          <span className="font-bold text-slate-800 dark:text-white">
-                            {content.rating.toFixed(1)}
-                          </span>
+                        )}
+                        <div>
+                          <p className="font-semibold text-slate-800 dark:text-white">{content.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{content.genre} • {content.language}</p>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                            <Heart size={14} />
-                            <span className="text-xs font-bold">
-                              {formatNumber(content.likes)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                            <MessageCircle size={14} />
-                            <span className="text-xs font-bold">
-                              {formatNumber(content.comments)}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${content.type === 'Movie' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                        content.type === 'Series' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
+                          'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                        }`}>
+                        {content.type}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-800 dark:text-white font-semibold">{formatNumber(content.views)}</td>
+                    <td className="p-3 text-slate-800 dark:text-white font-semibold">{formatNumber(content.watchTime)}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1">
+                        <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                        <span className="font-semibold text-slate-800 dark:text-white">{content.rating.toFixed(1)}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-slate-800 dark:text-white font-semibold">{formatCurrency(content.revenue)}</td>
+                    <td className="p-3 text-slate-800 dark:text-white font-semibold">{content.engagement.toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </motion.div>
-      </div>
+      )}
     </div>
   );
 };

@@ -36,7 +36,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import type { Movie, WebSeries, ShortFilm } from "../../types";
-import { useNavigate } from "react-router-dom";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -401,8 +400,6 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const ContentApproval: React.FC = () => {
-  const navigate = useNavigate();
-
   // States
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -465,7 +462,7 @@ const ContentApproval: React.FC = () => {
           status: data.isPublished ? "approved" : "pending",
           submittedBy: "Admin", // You can add createdBy field in your schema
           submittedDate: data.createdAt || new Date(),
-          thumbnail: data.thumbnail,
+          thumbnail: data.thumbnailCdnUrl || data.thumbnail,
           description: data.description,
           genre: data.genre,
           duration: data.duration,
@@ -491,7 +488,7 @@ const ContentApproval: React.FC = () => {
           status: data.isPublished ? "approved" : "pending",
           submittedBy: "Admin",
           submittedDate: data.createdAt || new Date(),
-          thumbnail: data.thumbnail,
+          thumbnail: data.thumbnailCdnUrl || data.thumbnail,
           description: data.description,
           genre: data.genre,
           duration: data.episodeDuration,
@@ -517,7 +514,7 @@ const ContentApproval: React.FC = () => {
           status: data.isPublished ? "approved" : "pending",
           submittedBy: "Admin",
           submittedDate: data.createdAt || new Date(),
-          thumbnail: data.thumbnail,
+          thumbnail: data.thumbnailCdnUrl || data.thumbnail,
           description: data.description,
           genre: data.genre,
           duration: data.duration,
@@ -1010,11 +1007,11 @@ const ContentApproval: React.FC = () => {
                             <span className="text-slate-700 dark:text-slate-300">
                               {item.submittedDate instanceof Timestamp
                                 ? item.submittedDate
-                                    .toDate()
-                                    .toLocaleDateString()
+                                  .toDate()
+                                  .toLocaleDateString()
                                 : new Date(
-                                    item.submittedDate,
-                                  ).toLocaleDateString()}
+                                  item.submittedDate,
+                                ).toLocaleDateString()}
                             </span>
                           </div>
                         </td>

@@ -136,6 +136,8 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
     descriptionHindi: "",
     thumbnail: "",
     videoUrl: "",
+    thumbnailCdnUrl: "",
+    videoCdnUrl: "",
     duration: "",
     releaseDate: "",
     director: "",
@@ -340,10 +342,14 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
               {episodeVideoMode === 'upload' ? (
                 <div className="mt-4">
                   <VideoUploader
-                    onUploadComplete={(url) => {
-                      setEpisodeData({ ...episodeData, videoUrl: url });
+                    onUploadComplete={(url, cdnUrl) => {
+                      setEpisodeData({
+                        ...episodeData,
+                        videoUrl: url,
+                        videoCdnUrl: cdnUrl || url  // ADD THIS
+                      });
                     }}
-                    currentUrl={episodeData.videoUrl}
+                    currentUrl={episodeData.videoCdnUrl || episodeData.videoUrl}  // CDN first
                     maxSize={1000}
                   />
                 </div>
@@ -378,9 +384,13 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
                 <div className="mt-4">
                   <ImageUploader
                     onUploadComplete={(url) => {
-                      setEpisodeData({ ...episodeData, thumbnail: url });
+                      setEpisodeData({
+                        ...episodeData,
+                        thumbnail: url,
+                        thumbnailCdnUrl: url  // ADD THIS
+                      });
                     }}
-                    currentUrl={episodeData.thumbnail}
+                    currentUrl={episodeData.thumbnailCdnUrl || episodeData.thumbnail}  // CDN first
                     folder="webseries/episodes"
                     aspectRatio="16:9"
                   />
@@ -773,8 +783,8 @@ const CastModal: React.FC<CastModalProps> = ({
               {castImageMode === 'upload' ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url) => {
-                      setCastData({ ...castData, profileImage: url });
+                    onUploadComplete={(url, cdnUrl) => {
+                      setCastData({ ...castData, profileImage: cdnUrl || url });
                     }}
                     currentUrl={castData.profileImage}
                     folder="webseries/cast"
@@ -1104,8 +1114,8 @@ const CrewModal: React.FC<CrewModalProps> = ({
               {crewImageMode === 'upload' ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url) => {
-                      setCrewData({ ...crewData, profileImage: url });
+                    onUploadComplete={(url, cdnUrl) => {
+                      setCrewData({ ...crewData, profileImage: cdnUrl || url });
                     }}
                     currentUrl={crewData.profileImage}
                     folder="webseries/crew"
@@ -1211,6 +1221,10 @@ const AddEditWebSeries: React.FC = () => {
     backdropUrl: "",
     trailerUrl: "",
     teaserUrl: "",
+    thumbnailCdnUrl: "",
+    posterCdnUrl: "",
+    backdropCdnUrl: "",
+    trailerCdnUrl: "",
     creator: "",
     creatorHindi: "",
     episodeDuration: "",
@@ -1487,6 +1501,14 @@ const AddEditWebSeries: React.FC = () => {
         seriesData.trailerUrl = formData.trailerUrl.trim();
       if (formData.teaserUrl?.trim())
         seriesData.teaserUrl = formData.teaserUrl.trim();
+      if (formData.thumbnailCdnUrl?.trim())
+        seriesData.thumbnailCdnUrl = formData.thumbnailCdnUrl.trim();
+      if (formData.posterCdnUrl?.trim())
+        seriesData.posterCdnUrl = formData.posterCdnUrl.trim();
+      if (formData.backdropCdnUrl?.trim())
+        seriesData.backdropCdnUrl = formData.backdropCdnUrl.trim();
+      if (formData.trailerCdnUrl?.trim())
+        seriesData.trailerCdnUrl = formData.trailerCdnUrl.trim();
       if (formData.creatorHindi?.trim())
         seriesData.creatorHindi = formData.creatorHindi.trim();
       if (formData.producer?.trim())
@@ -1581,6 +1603,14 @@ const AddEditWebSeries: React.FC = () => {
         updateData.trailerUrl = formData.trailerUrl.trim();
       if (formData.teaserUrl?.trim())
         updateData.teaserUrl = formData.teaserUrl.trim();
+      if (formData.thumbnailCdnUrl?.trim())
+        updateData.thumbnailCdnUrl = formData.thumbnailCdnUrl.trim();
+      if (formData.posterCdnUrl?.trim())
+        updateData.posterCdnUrl = formData.posterCdnUrl.trim();
+      if (formData.backdropCdnUrl?.trim())
+        updateData.backdropCdnUrl = formData.backdropCdnUrl.trim();
+      if (formData.trailerCdnUrl?.trim())
+        updateData.trailerCdnUrl = formData.trailerCdnUrl.trim();
       if (formData.cast && formData.cast.length > 0)
         updateData.cast = formData.cast;
       if (formData.crew && formData.crew.length > 0)
@@ -2134,10 +2164,14 @@ const AddEditWebSeries: React.FC = () => {
                   {thumbnailInputMode === 'upload' ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, thumbnail: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            thumbnail: url,
+                            thumbnailCdnUrl: cdnUrl || url  // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.thumbnail}
+                        currentUrl={formData.thumbnailCdnUrl || formData.thumbnail}  // CDN first
                         folder="webseries/thumbnails"
                         aspectRatio="16:9"
                       />
@@ -2171,10 +2205,14 @@ const AddEditWebSeries: React.FC = () => {
                   {posterInputMode === 'upload' ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, posterUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            posterUrl: url,
+                            posterCdnUrl: cdnUrl || url  // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.posterUrl}
+                        currentUrl={formData.posterCdnUrl || formData.posterUrl}  // CDN first
                         folder="webseries/posters"
                         aspectRatio="2:3"
                       />
@@ -2208,10 +2246,14 @@ const AddEditWebSeries: React.FC = () => {
                   {backdropInputMode === 'upload' ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, backdropUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            backdropUrl: url,
+                            backdropCdnUrl: cdnUrl || url  // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.backdropUrl}
+                        currentUrl={formData.backdropCdnUrl || formData.backdropUrl}  // CDN first
                         folder="webseries/backdrops"
                         aspectRatio="16:9"
                       />
@@ -2245,10 +2287,14 @@ const AddEditWebSeries: React.FC = () => {
                   {trailerInputMode === 'upload' ? (
                     <div className="mt-4">
                       <VideoUploader
-                        onUploadComplete={(url) => {
-                          setFormData({ ...formData, trailerUrl: url });
+                        onUploadComplete={(url, cdnUrl) => {
+                          setFormData({
+                            ...formData,
+                            trailerUrl: url,
+                            trailerCdnUrl: cdnUrl || url  // ADD THIS
+                          });
                         }}
-                        currentUrl={formData.trailerUrl}
+                        currentUrl={formData.trailerCdnUrl || formData.trailerUrl}  // CDN first
                         maxSize={500}
                       />
                     </div>

@@ -375,8 +375,13 @@ const SeriesManagement: React.FC = () => {
           descriptionHindi: data.descriptionHindi,
           thumbnail: data.thumbnail,
           thumbnailUrl: data.thumbnailUrl,
+          thumbnailCdnUrl: data.thumbnailCdnUrl,  // ADD THIS
           posterUrl: data.posterUrl,
+          posterCdnUrl: data.posterCdnUrl,        // ADD THIS
           backdropUrl: data.backdropUrl,
+          backdropCdnUrl: data.backdropCdnUrl,    // ADD THIS
+          trailerCdnUrl: data.trailerCdnUrl,      // ADD THIS
+          teaserCdnUrl: data.teaserCdnUrl,
           banner: data.banner,
           rating: data.rating,
           ratingCount: data.ratingCount,
@@ -844,7 +849,13 @@ const SeriesManagement: React.FC = () => {
                   {/* Thumbnail */}
                   <div className="relative aspect-[2/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
                     <img
-                      src={seriesItem.posterUrl || seriesItem.thumbnailUrl || seriesItem.thumbnail}
+                      src={
+                        seriesItem.posterCdnUrl ||
+                        seriesItem.posterUrl ||
+                        seriesItem.thumbnailCdnUrl ||
+                        seriesItem.thumbnailUrl ||
+                        seriesItem.thumbnail
+                      }
                       alt={seriesItem.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       onError={(e) => {

@@ -59,7 +59,7 @@ import UserAnalytics from "../admin/analytics/UserAnalytics";
 // 📢 MARKETING
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import BannersManagement from "../admin/marketing/BannersManagement";
-import NotificationsManagement from "../admin/marketing/NotificationsManagement";
+import NotificationsManagement from "../admin/notifications/NotificationsManagement";
 import PromotionsManagement from "../admin/marketing/PromotionsManagement";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -87,6 +87,7 @@ import AddNewEditNotification from "../admin/marketing/AddNewEditNotification";
 import AddNewEditPromotion from "../admin/marketing/AddNewEditPromotion";
 import AnalyticsGenerator from "../admin/analytics/AnalyticsGenerator";
 import AnalyticsDashboard from "../admin/analytics/AnalyticsDashboard";
+import AddEditEvent from "../admin/events/AddEditEvent";
 
 const AdminRoutes: React.FC = () => {
   return (
@@ -539,6 +540,17 @@ const AdminRoutes: React.FC = () => {
             allowedRoles={["content_manager", "super_admin"]}
           >
             <EventsManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events/new"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["content_manager", "super_admin"]}
+          >
+            <AddEditEvent />
           </ProtectedRoute>
         }
       />

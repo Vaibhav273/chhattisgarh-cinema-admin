@@ -1,24 +1,45 @@
 // src/components/admin/VideoUploader.tsx
-import React, { useState, useRef } from 'react';
-import { Upload, X, FileVideo, Loader2, CheckCircle2, AlertCircle, Film } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react'; // ✅ ADD useEffect
+import { Upload, X, FileVideo, Loader2, CheckCircle2, AlertCircle, Film, Settings } from 'lucide-react'; // ✅ ADD Settings
 import { motion } from 'framer-motion';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../config/firebase';
+// ✅ ADD: Import encoding settings service
+import { getEncodingSettings } from '../../services/settingsService';
 
 type UploadStatus = 'idle' | 'uploading' | 'encoding' | 'completed' | 'error';
 
+// ✅ ADD: Encoding settings interface
+interface EncodingSettings {
+    codec: string;
+    container: string;
+    resolutions: string[];
+    maxBitrate: number;
+    audioBitrate: number;
+    audioCodec: string;
+    autoEncoding: boolean;
+    adaptiveBitrate: boolean;
+    generateThumbnails: boolean;
+    thumbnailCount: number;
+    segmentDuration: number;
+}
+
 interface VideoUploaderProps {
-    onUploadComplete: (url: string, encodedUrl?: string) => void;
+    onUploadComplete: (url: string, encodedUrl?: string, metadata?: any) => void;
     onUploadStart?: () => void;
     currentUrl?: string;
-    maxSize?: number; // in MB
+    existingVideoUrl?: string;
+    folder: string;
+    maxSize?: number;
     acceptedFormats?: string[];
 }
 
 export const VideoUploader: React.FC<VideoUploaderProps> = ({
     onUploadComplete,
     onUploadStart,
+    existingVideoUrl,
     currentUrl,
+    folder,
     maxSize = 2000,
     acceptedFormats = ['mp4', 'mkv', 'webm', 'avi', 'mov'],
 }) => {
@@ -27,11 +48,40 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [error, setError] = useState('');
     const [isDragging, setIsDragging] = useState(false);
-    const [videoUrl, setVideoUrl] = useState(currentUrl || '');
     const [encodingProgress, setEncodingProgress] = useState(0);
+    const [videoUrl, setVideoUrl] = useState(existingVideoUrl || currentUrl || '');
+
+    // ✅ ADD: Encoding settings state
+    const [encodingSettings, setEncodingSettings] = useState<EncodingSettings | null>(null);
+    const [loadingSettings, setLoadingSettings] = useState(true);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const uploadTaskRef = useRef<any>(null);
+
+    // ✅ ADD: Load encoding settings on mount
+    useEffect(() => {
+        loadEncodingSettings();
+    }, []);
+
+    useEffect(() => {
+        if (existingVideoUrl && !selectedFile) {
+            setVideoUrl(existingVideoUrl);
+        }
+    }, [existingVideoUrl, selectedFile]);
+
+    const loadEncodingSettings = async () => {
+        try {
+            setLoadingSettings(true);
+            const settings = await getEncodingSettings();
+            setEncodingSettings(settings);
+            console.log('✅ Loaded encoding settings:', settings);
+        } catch (error) {
+            console.error('❌ Error loading encoding settings:', error);
+            setError('Failed to load encoding settings');
+        } finally {
+            setLoadingSettings(false);
+        }
+    };
 
     const validateFile = (file: File): string | null => {
         const fileExtension = file.name.split('.').pop()?.toLowerCase();
@@ -63,13 +113,19 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
 
     const uploadFile = async (file: File) => {
         try {
+            // ✅ ADD: Check if settings loaded
+            if (!encodingSettings) {
+                setError('Encoding settings not loaded. Please refresh and try again.');
+                return;
+            }
+
             setUploadStatus('uploading');
             setUploadProgress(0);
             onUploadStart?.();
 
             const timestamp = Date.now();
             const fileName = `${timestamp}_${file.name}`;
-            const storageRef = ref(storage, `videos/uploads/${fileName}`);
+            const storageRef = ref(storage, `${folder}/${fileName}`);
 
             uploadTaskRef.current = uploadBytesResumable(storageRef, file);
 
@@ -86,20 +142,40 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
                 },
                 async () => {
                     const url = await getDownloadURL(uploadTaskRef.current.snapshot.ref);
-                    setVideoUrl(url);
 
-                    // Start encoding status
-                    setUploadStatus('encoding');
-                    setEncodingProgress(0);
+                    // ✅ MODIFIED: Start encoding with settings
+                    if (encodingSettings.autoEncoding) {
+                        setUploadStatus('encoding');
+                        setEncodingProgress(0);
+                        simulateEncodingProgress();
+                    }
 
-                    // Simulate encoding progress
-                    simulateEncodingProgress();
+                    // ✅ ADD: Create metadata object with encoding settings
+                    const metadata = {
+                        originalUrl: url,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        uploadedAt: new Date(),
+                        encodingSettings: {
+                            codec: encodingSettings.codec,
+                            container: encodingSettings.container,
+                            resolutions: encodingSettings.resolutions,
+                            maxBitrate: encodingSettings.maxBitrate,
+                            audioBitrate: encodingSettings.audioBitrate,
+                            audioCodec: encodingSettings.audioCodec,
+                            adaptiveBitrate: encodingSettings.adaptiveBitrate,
+                            generateThumbnails: encodingSettings.generateThumbnails,
+                            thumbnailCount: encodingSettings.thumbnailCount,
+                        },
+                        encodingStatus: encodingSettings.autoEncoding ? 'pending' : 'skipped',
+                        qualitiesGenerated: [],
+                    };
 
                     // Complete after simulation
                     setTimeout(() => {
                         setUploadStatus('completed');
-                        onUploadComplete(url);
-                    }, 3000);
+                        onUploadComplete(url, url, metadata); // ✅ MODIFIED: Pass metadata
+                    }, encodingSettings.autoEncoding ? 3000 : 0);
                 }
             );
         } catch (err) {
@@ -131,7 +207,6 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
 
     const removeVideo = () => {
         setSelectedFile(null);
-        setVideoUrl('');
         setUploadStatus('idle');
         setUploadProgress(0);
         setEncodingProgress(0);
@@ -159,6 +234,77 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
             handleFileSelect(file);
         }
     };
+
+    // ✅ ADD: Show loading state while settings load
+    if (loadingSettings) {
+        return (
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center">
+                <Loader2 className="animate-spin text-blue-500 mx-auto mb-3" size={32} />
+                <p className="text-slate-600 dark:text-slate-400 font-semibold">
+                    Loading encoding settings...
+                </p>
+            </div>
+        );
+    }
+
+    if (videoUrl && !selectedFile && uploadStatus === 'idle') {
+        return (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-lg"
+            >
+                <div className="relative bg-black">
+                    <video
+                        src={videoUrl}
+                        controls
+                        className="w-full h-64 object-contain"
+                    >
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <div className="p-5">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-500/10">
+                                <FileVideo className="text-blue-500" size={20} />
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-900 dark:text-white text-sm">
+                                    Current Video
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    {videoUrl.substring(videoUrl.lastIndexOf('/') + 1, videoUrl.length).substring(0, 30)}...
+                                </p>
+                            </div>
+                        </div>
+
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => {
+                                setVideoUrl('');
+                                if (fileInputRef.current) {
+                                    fileInputRef.current.value = '';
+                                }
+                            }}
+                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors"
+                        >
+                            <X size={20} />
+                        </motion.button>
+                    </div>
+
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full mt-4 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+                    >
+                        Replace Video
+                    </button>
+                </div>
+            </motion.div>
+        );
+    }
 
     if (uploadStatus !== 'idle' && selectedFile) {
         return (
@@ -224,14 +370,30 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
                                 </p>
                             )}
                             {uploadStatus === 'encoding' && (
-                                <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">
-                                    Encoding video... {encodingProgress}%
-                                </p>
+                                <>
+                                    <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                                        Encoding video... {encodingProgress}%
+                                    </p>
+                                    {/* ✅ ADD: Show encoding info */}
+                                    {encodingSettings && (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                            Generating: {encodingSettings.resolutions.join(', ')} • {encodingSettings.codec.toUpperCase()}
+                                        </p>
+                                    )}
+                                </>
                             )}
                             {uploadStatus === 'completed' && (
-                                <p className="text-sm font-semibold text-green-600 dark:text-green-400">
-                                    ✓ Video ready!
-                                </p>
+                                <>
+                                    <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                                        ✓ Video ready!
+                                    </p>
+                                    {/* ✅ ADD: Show completed encoding info */}
+                                    {encodingSettings && encodingSettings.autoEncoding && (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                            Qualities: {encodingSettings.resolutions.join(', ')}
+                                        </p>
+                                    )}
+                                </>
                             )}
                             {uploadStatus === 'error' && (
                                 <p className="text-sm font-semibold text-red-600 dark:text-red-400">
@@ -335,6 +497,23 @@ export const VideoUploader: React.FC<VideoUploaderProps> = ({
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                         Maximum size: {maxSize}MB
                     </p>
+
+                    {/* ✅ ADD: Show encoding settings info */}
+                    {encodingSettings && (
+                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                <Settings size={14} className="text-blue-600 dark:text-blue-400" />
+                                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                    Auto-encoding: {encodingSettings.autoEncoding ? 'ON' : 'OFF'}
+                                </span>
+                            </div>
+                            {encodingSettings.autoEncoding && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                    Will generate: {encodingSettings.resolutions.join(', ')}
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
             </motion.div>
 

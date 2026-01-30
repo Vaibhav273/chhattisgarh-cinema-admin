@@ -116,6 +116,11 @@ export interface Movie extends BaseContent {
     shareCount?: number;
     bookmarkCount?: number;
     commentsCount?: number;
+    thumbnailCdnUrl: string,
+    posterCdnUrl: string,
+    backdropCdnUrl: string,
+    trailerCdnUrl: string,
+    videoCdnUrl: string,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -162,6 +167,10 @@ export interface WebSeries extends BaseContent {
     commentsCount?: number;
     socialMedia?: SocialMedia; // ✅ Add this line
     officialWebsite?: string;
+    thumbnailCdnUrl: string,
+    posterCdnUrl: string,
+    backdropCdnUrl: string,
+    trailerCdnUrl: string,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -177,6 +186,11 @@ export interface Season {
     descriptionHindi?: string;
     thumbnail?: string;
     posterUrl?: string;
+    posterCdnUrl?: string;          // ADD THIS
+    thumbnailUrl?: string;
+    thumbnailCdnUrl?: string;       // ADD THIS
+    backdropUrl?: string;
+    backdropCdnUrl?: string;
     totalEpisodes: number;
     releaseDate: string;
     rating?: number;
@@ -218,6 +232,8 @@ export interface Episode {
     isDownloadable?: boolean;
     screenshots?: string[];
     isActive?: boolean;
+    thumbnailCdnUrl: string;
+    videoCdnUrl: string;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -257,6 +273,10 @@ export interface ShortFilm extends BaseContent {
     filmmakerNotesHindi?: string;
     commentsCount?: number;
     socialMedia?: SocialMedia;
+    thumbnailCdnUrl: string;
+    posterCdnUrl: string;
+    backdropCdnUrl: string;
+    videoCdnUrl: string;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

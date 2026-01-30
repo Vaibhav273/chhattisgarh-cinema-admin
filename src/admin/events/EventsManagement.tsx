@@ -508,7 +508,7 @@ const EventsManagement: React.FC = () => {
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={() => navigate("/admin/events/add")}
+                                    onClick={() => navigate("/admin/events/new")}
                                     className="px-8 py-3 bg-white text-orange-600 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                                 >
                                     <Plus size={20} />
@@ -735,10 +735,10 @@ const EventsManagement: React.FC = () => {
                                         >
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    {event.image ? (
+                                                    {(event.imageCdnUrl || event.image) ? (
                                                         <div className="relative">
                                                             <img
-                                                                src={event.image}
+                                                                src={event.imageCdnUrl || event.image}
                                                                 alt={event.title}
                                                                 className="w-16 h-16 object-cover rounded-xl"
                                                             />
