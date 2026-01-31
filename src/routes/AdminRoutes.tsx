@@ -88,6 +88,8 @@ import AddNewEditPromotion from "../admin/marketing/AddNewEditPromotion";
 import AnalyticsGenerator from "../admin/analytics/AnalyticsGenerator";
 import AnalyticsDashboard from "../admin/analytics/AnalyticsDashboard";
 import AddEditEvent from "../admin/events/AddEditEvent";
+import EventDetail from "../admin/events/EventDetail";
+import ActivityLogs from "../admin/ActivityLogs";
 
 const AdminRoutes: React.FC = () => {
   return (
@@ -105,6 +107,14 @@ const AdminRoutes: React.FC = () => {
         element={
           <ProtectedRoute requireAdmin>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/activity-logs"
+        element={
+          <ProtectedRoute requireAdmin allowedRoles={["super_admin"]}>
+            <ActivityLogs />
           </ProtectedRoute>
         }
       />
@@ -551,6 +561,28 @@ const AdminRoutes: React.FC = () => {
             allowedRoles={["content_manager", "super_admin"]}
           >
             <AddEditEvent />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events/edit/:eventId"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["content_manager", "super_admin"]}
+          >
+            <AddEditEvent />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events/view/:eventId"
+        element={
+          <ProtectedRoute
+            requireAdmin
+            allowedRoles={["content_manager", "super_admin"]}
+          >
+            <EventDetail />
           </ProtectedRoute>
         }
       />

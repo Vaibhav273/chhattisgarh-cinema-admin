@@ -40,10 +40,11 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
 import type { User as UserType } from "../../types/user";
 import { usePermissions } from "../../hooks/usePermissions";
 import { Permission, ROLE_CONFIGS } from "../../types/roles";
+import { logUserManagementAction } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════
 // 🎉 TOAST NOTIFICATION
@@ -292,8 +293,32 @@ const ViewUser: React.FC = () => {
 
       console.log("✅ Basic user data loaded");
       setUser(userData);
+      await logUserManagementAction(
+        "user_details_page_viewed",
+        "success",
+        `Viewed detailed page for user: ${userData.email}`,
+        auth.currentUser,
+        {
+          viewedUserId: userData.uid,
+          viewedUserEmail: userData.email,
+          viewedUserName: userData.displayName,
+          viewedUserRole: userData.role,
+          hasPermissionWarnings: permissionWarnings.length > 0,
+          permissionWarnings: permissionWarnings,
+        },
+      );
     } catch (error) {
       console.error("❌ Error fetching basic user data:", error);
+      await logUserManagementAction(
+        "user_details_page_view_failed",
+        "failed",
+        `Failed to view user details page: ${error instanceof Error ? error.message : "Unknown error"}`,
+        auth.currentUser,
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          userId: userId,
+        },
+      );
       throw error;
     }
   };
@@ -835,7 +860,23 @@ const ViewUser: React.FC = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => navigate(`/admin/users/edit/${userId}`)}
+                    onClick={async () => {
+                      // ✅ OPTIONAL: Log navigation to edit page
+                      await logUserManagementAction(
+                        "user_edit_opened_from_details",
+                        "success",
+                        `Opened edit page for user: ${user.displayName}`,
+                        auth.currentUser,
+                        {
+                          targetUserId: userId,
+                          targetUserEmail: user.email,
+                          targetUserName: user.displayName,
+                          source: "details_page",
+                        },
+                      );
+
+                      navigate(`/admin/users/edit/${userId}`);
+                    }}
                     className="px-6 py-3 bg-white/20 backdrop-blur-xl text-white rounded-xl font-bold hover:bg-white/30 transition-all flex items-center gap-2"
                   >
                     <Edit size={20} />

@@ -24,6 +24,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { logEncodingAction, logError } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -271,10 +272,33 @@ const EncodingSettings: React.FC = () => {
       // Recalculate stats after save
       await calculateStats();
 
+      // ✅ ADD LOGGING
+      await logEncodingAction("update_config", {
+        codec: config.codec,
+        container: config.container,
+        resolutions: config.resolutions,
+        maxBitrate: config.maxBitrate,
+        audioBitrate: config.audioBitrate,
+        audioCodec: config.audioCodec,
+        autoEncoding: config.autoEncoding,
+        adaptiveBitrate: config.adaptiveBitrate,
+        generateThumbnails: config.generateThumbnails,
+        thumbnailCount: config.thumbnailCount,
+        segmentDuration: config.segmentDuration,
+      });
+
       setSaving(false);
     } catch (error) {
       console.error("Error saving encoding settings:", error);
       showToast("Failed to save encoding settings", "error");
+
+      // ✅ ADD ERROR LOGGING
+      await logError(
+        "Encoding Settings",
+        "Failed to save encoding configuration",
+        { error },
+      );
+
       setSaving(false);
     }
   };
@@ -284,9 +308,18 @@ const EncodingSettings: React.FC = () => {
     showToast("Testing encoding configuration...", "info");
 
     // Simulate test encoding
-    setTimeout(() => {
+    setTimeout(async () => {
       setTesting(false);
       showToast("Encoding test completed successfully!", "success");
+
+      // ✅ ADD LOGGING
+      await logEncodingAction("test_encoding", {
+        codec: config.codec,
+        container: config.container,
+        resolutions: config.resolutions,
+        maxBitrate: config.maxBitrate,
+        status: "success",
+      });
     }, 3000);
   };
 

@@ -4,26 +4,102 @@ import * as admin from "firebase-admin";
 const db = admin.firestore();
 
 // ═══════════════════════════════════════════════════════════════
+// 🔄 ACTIVITY LOGGING HELPER
+// ═══════════════════════════════════════════════════════════════
+
+const logManualTriggerActivity = async (
+    action: string,
+    level: 'info' | 'warning' | 'error' | 'success',
+    message: string,
+    userId?: string,
+    details?: any
+) => {
+    try {
+        await db.collection('systemLogs').add({
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            level,
+            module: 'Analytics',
+            subModule: 'Manual Triggers',
+            action,
+            message,
+            performedBy: userId ? {
+                uid: userId,
+                email: 'admin@manual-trigger',
+                name: 'Admin (Manual Trigger)',
+                role: 'admin',
+            } : {
+                uid: 'system',
+                email: 'system@manual-trigger',
+                name: 'System',
+                role: 'system',
+            },
+            status: level === 'success' ? 'success' : level === 'error' ? 'failed' : 'pending',
+            details: details || {},
+            ipAddress: 'cloud-function',
+            userAgent: 'Manual Analytics Trigger',
+        });
+    } catch (error) {
+        console.error('❌ Failed to log manual trigger activity:', error);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // 🔧 MANUAL TRIGGER - GENERATE DAILY ANALYTICS
 // ═══════════════════════════════════════════════════════════════
 export const generateDailyAnalyticsManual = onRequest(
     {
         timeoutSeconds: 540,
         memory: "1GiB",
-        cors: true, // ✅ Enable CORS for frontend calls
+        cors: true,
     },
     async (request, response) => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+
         try {
-            // Check for admin authorization (optional but recommended)
+            // Check for admin authorization
             const authHeader = request.headers.authorization;
             if (!authHeader?.startsWith('Bearer ')) {
+                await logManualTriggerActivity(
+                    'daily_analytics_manual_unauthorized',
+                    'warning',
+                    'Unauthorized attempt to generate daily analytics',
+                    undefined,
+                    {
+                        ip: request.ip,
+                        headers: request.headers,
+                    }
+                );
                 response.status(401).json({ error: "Unauthorized" });
                 return;
+            }
+
+            // Extract user ID from token (optional)
+            try {
+                const token = authHeader.split('Bearer ')[1];
+                const decodedToken = await admin.auth().verifyIdToken(token);
+                userId = decodedToken.uid;
+            } catch (error) {
+                console.log('Could not verify token for logging');
             }
 
             const daysToGenerate = parseInt(request.query.days as string) || 30;
             const startDate = request.query.startDate as string;
             const endDate = request.query.endDate as string;
+
+            // ✅ Log manual trigger started
+            await logManualTriggerActivity(
+                'daily_analytics_manual_started',
+                'info',
+                `Manual daily analytics generation started`,
+                userId,
+                {
+                    daysToGenerate,
+                    startDate,
+                    endDate,
+                    requestedBy: userId || 'unknown',
+                }
+            );
 
             console.log(`📊 Manual trigger: Generating analytics...`);
             console.log(`Days: ${daysToGenerate}, StartDate: ${startDate}, EndDate: ${endDate}`);
@@ -75,6 +151,22 @@ export const generateDailyAnalyticsManual = onRequest(
                 }
             }
 
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
+
+            // ✅ Log manual trigger completed
+            await logManualTriggerActivity(
+                'daily_analytics_manual_completed',
+                'success',
+                `Manual daily analytics completed: ${results.length} successful, ${errors.length} failed`,
+                userId,
+                {
+                    successful: results.length,
+                    failed: errors.length,
+                    processingTime: `${processingTime}s`,
+                    dateRange: startDate && endDate ? `${startDate} to ${endDate}` : `Last ${daysToGenerate} days`,
+                }
+            );
+
             response.json({
                 success: true,
                 message: `✅ Generated analytics for ${results.length} days`,
@@ -83,11 +175,27 @@ export const generateDailyAnalyticsManual = onRequest(
                 stats: {
                     total: results.length + errors.length,
                     successful: results.length,
-                    failed: errors.length
+                    failed: errors.length,
+                    processingTime: `${processingTime}s`,
                 }
             });
+
         } catch (error) {
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
             console.error("❌ Error:", error);
+
+            // ✅ Log manual trigger failed
+            await logManualTriggerActivity(
+                'daily_analytics_manual_failed',
+                'error',
+                'Manual daily analytics generation failed',
+                userId,
+                {
+                    error: error instanceof Error ? error.message : String(error),
+                    processingTime: `${processingTime}s`,
+                }
+            );
+
             response.status(500).json({
                 success: false,
                 error: String(error)
@@ -106,24 +214,82 @@ export const generateContentPerformanceManual = onRequest(
         cors: true,
     },
     async (request, response) => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+
         try {
             const authHeader = request.headers.authorization;
             if (!authHeader?.startsWith('Bearer ')) {
+                await logManualTriggerActivity(
+                    'content_performance_manual_unauthorized',
+                    'warning',
+                    'Unauthorized attempt to update content performance'
+                );
                 response.status(401).json({ error: "Unauthorized" });
                 return;
             }
 
+            try {
+                const token = authHeader.split('Bearer ')[1];
+                const decodedToken = await admin.auth().verifyIdToken(token);
+                userId = decodedToken.uid;
+            } catch (error) {
+                console.log('Could not verify token for logging');
+            }
+
+            // ✅ Log manual trigger started
+            await logManualTriggerActivity(
+                'content_performance_manual_started',
+                'info',
+                'Manual content performance update started',
+                userId
+            );
+
             console.log("🎬 Manual trigger: Updating content performance...");
 
             const result = await generateContentPerformance();
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
+
+            // ✅ Log manual trigger completed
+            await logManualTriggerActivity(
+                'content_performance_manual_completed',
+                'success',
+                'Manual content performance update completed',
+                userId,
+                {
+                    processingTime: `${processingTime}s`,
+                    totalMovies: result.movieCount,
+                    totalSeries: result.seriesCount,
+                    totalShortFilms: result.shortFilmCount,
+                    totalEvents: result.eventCount,
+                    totalViews: result.movieViews + result.seriesViews + result.shortFilmViews + result.eventViews,
+                    totalRevenue: result.movieRevenue + result.seriesRevenue + result.shortFilmRevenue + result.eventRevenue,
+                }
+            );
 
             response.json({
                 success: true,
                 message: "✅ Content performance updated successfully",
-                data: result
+                data: result,
+                processingTime: `${processingTime}s`,
             });
+
         } catch (error) {
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
             console.error("❌ Error:", error);
+
+            // ✅ Log manual trigger failed
+            await logManualTriggerActivity(
+                'content_performance_manual_failed',
+                'error',
+                'Manual content performance update failed',
+                userId,
+                {
+                    error: error instanceof Error ? error.message : String(error),
+                    processingTime: `${processingTime}s`,
+                }
+            );
+
             response.status(500).json({
                 success: false,
                 error: String(error)
@@ -142,14 +308,41 @@ export const generateMonthlyAnalyticsManual = onRequest(
         cors: true,
     },
     async (request, response) => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+
         try {
             const authHeader = request.headers.authorization;
             if (!authHeader?.startsWith('Bearer ')) {
+                await logManualTriggerActivity(
+                    'monthly_analytics_manual_unauthorized',
+                    'warning',
+                    'Unauthorized attempt to generate monthly analytics'
+                );
                 response.status(401).json({ error: "Unauthorized" });
                 return;
             }
 
+            try {
+                const token = authHeader.split('Bearer ')[1];
+                const decodedToken = await admin.auth().verifyIdToken(token);
+                userId = decodedToken.uid;
+            } catch (error) {
+                console.log('Could not verify token for logging');
+            }
+
             const monthsToGenerate = parseInt(request.query.months as string) || 1;
+
+            // ✅ Log manual trigger started
+            await logManualTriggerActivity(
+                'monthly_analytics_manual_started',
+                'info',
+                `Manual monthly analytics generation started for ${monthsToGenerate} month(s)`,
+                userId,
+                {
+                    monthsToGenerate,
+                }
+            );
 
             console.log(`📅 Manual trigger: Generating ${monthsToGenerate} months of analytics...`);
 
@@ -176,14 +369,51 @@ export const generateMonthlyAnalyticsManual = onRequest(
                 }
             }
 
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
+
+            // ✅ Log manual trigger completed
+            await logManualTriggerActivity(
+                'monthly_analytics_manual_completed',
+                'success',
+                `Manual monthly analytics completed: ${results.length} successful, ${errors.length} failed`,
+                userId,
+                {
+                    successful: results.length,
+                    failed: errors.length,
+                    processingTime: `${processingTime}s`,
+                    monthsGenerated: results.map(r => r.month),
+                }
+            );
+
             response.json({
                 success: true,
                 message: `✅ Generated monthly analytics for ${results.length} months`,
                 results: results,
-                errors: errors.length > 0 ? errors : undefined
+                errors: errors.length > 0 ? errors : undefined,
+                stats: {
+                    total: results.length + errors.length,
+                    successful: results.length,
+                    failed: errors.length,
+                    processingTime: `${processingTime}s`,
+                }
             });
+
         } catch (error) {
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
             console.error("❌ Error:", error);
+
+            // ✅ Log manual trigger failed
+            await logManualTriggerActivity(
+                'monthly_analytics_manual_failed',
+                'error',
+                'Manual monthly analytics generation failed',
+                userId,
+                {
+                    error: error instanceof Error ? error.message : String(error),
+                    processingTime: `${processingTime}s`,
+                }
+            );
+
             response.status(500).json({
                 success: false,
                 error: String(error)

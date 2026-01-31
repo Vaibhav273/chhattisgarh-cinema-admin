@@ -27,6 +27,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { logPromotionAction, logError } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -304,9 +305,24 @@ const AddNewEditPromotion: React.FC = () => {
         // Update existing promotion
         await updateDoc(doc(db, "promotions", id!), promotionData);
         showToast("Promotion updated successfully!", "success");
+
+        // ✅ ADD LOGGING
+        await logPromotionAction(
+          "update",
+          id!,
+          formData.code.trim().toUpperCase(),
+          {
+            type: formData.type,
+            discount: parseFloat(formData.discount),
+            usageLimit: parseInt(formData.usageLimit),
+            isActive: formData.isActive,
+            validFrom: formData.validFrom,
+            validUntil: formData.validUntil,
+          },
+        );
       } else {
         // Create new promotion
-        await addDoc(collection(db, "promotions"), {
+        const docRef = await addDoc(collection(db, "promotions"), {
           ...promotionData,
           usedCount: 0,
           totalRevenue: 0,
@@ -314,6 +330,21 @@ const AddNewEditPromotion: React.FC = () => {
           createdAt: Timestamp.now(),
         });
         showToast("Promotion created successfully!", "success");
+
+        // ✅ ADD LOGGING
+        await logPromotionAction(
+          "create",
+          docRef.id,
+          formData.code.trim().toUpperCase(),
+          {
+            type: formData.type,
+            discount: parseFloat(formData.discount),
+            usageLimit: parseInt(formData.usageLimit),
+            isActive: formData.isActive,
+            validFrom: formData.validFrom,
+            validUntil: formData.validUntil,
+          },
+        );
       }
 
       // Navigate back after 1.5 seconds
@@ -331,6 +362,19 @@ const AddNewEditPromotion: React.FC = () => {
         `Failed to ${isEditMode ? "update" : "create"} promotion. Please try again.`,
         "error",
       );
+
+      // ✅ ADD ERROR LOGGING
+      await logError(
+        "Promotions",
+        `Failed to ${isEditMode ? "update" : "create"} promotion`,
+        {
+          error,
+          promotionId: id,
+          promoCode: formData.code,
+          isEditMode,
+        },
+      );
+
       setUploading(false);
     }
   };

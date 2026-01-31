@@ -34,9 +34,19 @@ import {
 import { db } from "../../config/firebase";
 import type { CastMember, CrewMember, SocialMedia } from "../../types";
 
-import { MediaSelector, type MediaInputMode } from "../../components/admin/MediaSelector";
+import {
+  MediaSelector,
+  type MediaInputMode,
+} from "../../components/admin/MediaSelector";
 import { VideoUploader } from "../../components/admin/VideoUploader";
 import { ImageUploader } from "../../components/admin/ImageUploader";
+import {
+  logContentCreate,
+  logContentUpdate,
+  logCastAdd,
+  logCrewAdd,
+  logError,
+} from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 TOAST NOTIFICATION
@@ -126,7 +136,7 @@ const CastModal: React.FC<CastModalProps> = ({
     order: 0,
   });
 
-  const [castImageMode, setCastImageMode] = useState<MediaInputMode>('url');
+  const [castImageMode, setCastImageMode] = useState<MediaInputMode>("url");
 
   useEffect(() => {
     if (initialData) {
@@ -304,11 +314,13 @@ const CastModal: React.FC<CastModalProps> = ({
                 label=""
               />
 
-              {castImageMode === 'upload' ? (
+              {castImageMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url, cdnUrl) => {
-                      setCastData({ ...castData, profileImage: cdnUrl || url });
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { cdnUrl } = urls[0];
+                      setCastData({ ...castData, profileImage: cdnUrl });
                     }}
                     currentUrl={castData.profileImage}
                     folder="cast"
@@ -490,7 +502,7 @@ const CrewModal: React.FC<CrewModalProps> = ({
     order: 0,
   });
 
-  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>('url');
+  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>("url");
 
   useEffect(() => {
     if (initialData) {
@@ -658,11 +670,13 @@ const CrewModal: React.FC<CrewModalProps> = ({
                 label=""
               />
 
-              {crewImageMode === 'upload' ? (
+              {crewImageMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url, cdnUrl) => {
-                      setCrewData({ ...crewData, profileImage: cdnUrl || url });
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { cdnUrl } = urls[0];
+                      setCrewData({ ...crewData, profileImage: cdnUrl });
                     }}
                     currentUrl={crewData.profileImage}
                     folder="crew"
@@ -903,11 +917,14 @@ const AddEditMovie: React.FC = () => {
   const [tagInput, setTagInput] = useState("");
   const [keywordInput, setKeywordInput] = useState("");
 
-  const [videoInputMode, setVideoInputMode] = useState<MediaInputMode>('url');
-  const [thumbnailInputMode, setThumbnailInputMode] = useState<MediaInputMode>('url');
-  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>('url');
-  const [backdropInputMode, setBackdropInputMode] = useState<MediaInputMode>('url');
-  const [trailerInputMode, setTrailerInputMode] = useState<MediaInputMode>('url');
+  const [videoInputMode, setVideoInputMode] = useState<MediaInputMode>("url");
+  const [thumbnailInputMode, setThumbnailInputMode] =
+    useState<MediaInputMode>("url");
+  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>("url");
+  const [backdropInputMode, setBackdropInputMode] =
+    useState<MediaInputMode>("url");
+  const [trailerInputMode, setTrailerInputMode] =
+    useState<MediaInputMode>("url");
 
   // Fetch movie data for edit mode
   useEffect(() => {
@@ -983,6 +1000,14 @@ const AddEditMovie: React.FC = () => {
       setFetchingMovie(false);
     } catch (error) {
       console.error("Error fetching movie:", error);
+      await logError(
+        "Movies",
+        `Failed to fetch movie data: ${error instanceof Error ? error.message : "Unknown error"}`,
+        {
+          movieId: movieId,
+          error: error instanceof Error ? error.stack : "Unknown error",
+        },
+      );
       showToast("Failed to load movie data", "error");
       setFetchingMovie(false);
       navigate("/admin/content");
@@ -1076,132 +1101,112 @@ const AddEditMovie: React.FC = () => {
       const movieData: Record<string, any> = {
         id: newMovieId,
         category: "movie",
-
-        // Basic Info
         title: formData.title.trim(),
         description: formData.description.trim(),
         videoUrl: formData.videoUrl.trim(),
-
-        // Details
         duration: formData.duration.trim(),
         releaseDate: formData.releaseDate.trim(),
         year: formData.year.trim(),
         language: formData.language,
         genre: formData.genre,
-
-        // People
         director: formData.director.trim(),
         cast: formData.cast,
         crew: formData.crew,
-
-        // Additional
         ageRating: formData.ageRating,
         certification: formData.certification,
-
-        // Status
         isActive: formData.isActive,
         isPublished: formData.isPublished,
         isPremium: formData.isPremium,
         isFeatured: formData.isFeatured,
         isTrending: formData.isTrending,
         isNewRelease: formData.isNewRelease,
-
-        // Stats
         views: 0,
         likes: 0,
         watchCount: 0,
-
-        // Timestamps
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
-      // Add optional fields only if they have values
-      if (formData.titleHindi?.trim()) {
+      // Add optional fields
+      if (formData.titleHindi?.trim())
         movieData.titleHindi = formData.titleHindi.trim();
-      }
-      if (formData.descriptionHindi?.trim()) {
+      if (formData.descriptionHindi?.trim())
         movieData.descriptionHindi = formData.descriptionHindi.trim();
-      }
-      if (formData.thumbnail?.trim()) {
+      if (formData.thumbnail?.trim())
         movieData.thumbnail = formData.thumbnail.trim();
-      }
-      if (formData.posterUrl?.trim()) {
+      if (formData.posterUrl?.trim())
         movieData.posterUrl = formData.posterUrl.trim();
-      }
-      if (formData.backdropUrl?.trim()) {
+      if (formData.backdropUrl?.trim())
         movieData.backdropUrl = formData.backdropUrl.trim();
-      }
-      if (formData.trailerUrl?.trim()) {
+      if (formData.trailerUrl?.trim())
         movieData.trailerUrl = formData.trailerUrl.trim();
-      }
-      if (formData.thumbnailCdnUrl?.trim()) {
+      if (formData.thumbnailCdnUrl?.trim())
         movieData.thumbnailCdnUrl = formData.thumbnailCdnUrl.trim();
-      }
-      if (formData.posterCdnUrl?.trim()) {
+      if (formData.posterCdnUrl?.trim())
         movieData.posterCdnUrl = formData.posterCdnUrl.trim();
-      }
-      if (formData.backdropCdnUrl?.trim()) {
+      if (formData.backdropCdnUrl?.trim())
         movieData.backdropCdnUrl = formData.backdropCdnUrl.trim();
-      }
-      if (formData.trailerCdnUrl?.trim()) {
+      if (formData.trailerCdnUrl?.trim())
         movieData.trailerCdnUrl = formData.trailerCdnUrl.trim();
-      }
-      if (formData.videoCdnUrl?.trim()) {
+      if (formData.videoCdnUrl?.trim())
         movieData.videoCdnUrl = formData.videoCdnUrl.trim();
-      }
-      if (formData.directorHindi?.trim()) {
+      if (formData.directorHindi?.trim())
         movieData.directorHindi = formData.directorHindi.trim();
-      }
-      if (formData.producer?.trim()) {
+      if (formData.producer?.trim())
         movieData.producer = formData.producer.trim();
-      }
-      if (formData.producerHindi?.trim()) {
+      if (formData.producerHindi?.trim())
         movieData.producerHindi = formData.producerHindi.trim();
-      }
-      if (formData.writer?.trim()) {
-        movieData.writer = formData.writer.trim();
-      }
-      if (formData.musicDirector?.trim()) {
+      if (formData.writer?.trim()) movieData.writer = formData.writer.trim();
+      if (formData.musicDirector?.trim())
         movieData.musicDirector = formData.musicDirector.trim();
-      }
-      if (formData.studio?.trim()) {
-        movieData.studio = formData.studio.trim();
-      }
-      if (formData.plotSummary?.trim()) {
+      if (formData.studio?.trim()) movieData.studio = formData.studio.trim();
+      if (formData.plotSummary?.trim())
         movieData.plotSummary = formData.plotSummary.trim();
-      }
-      if (formData.budget?.trim()) {
-        movieData.budget = formData.budget.trim();
-      }
-      if (formData.boxOfficeCollection?.trim()) {
+      if (formData.budget?.trim()) movieData.budget = formData.budget.trim();
+      if (formData.boxOfficeCollection?.trim())
         movieData.boxOfficeCollection = formData.boxOfficeCollection.trim();
-      }
-      if (formData.tags.length > 0) {
-        movieData.tags = formData.tags;
-      }
-      if (formData.keywords.length > 0) {
-        movieData.keywords = formData.keywords;
-      }
-      if (formData.officialWebsite?.trim()) {
+      if (formData.tags.length > 0) movieData.tags = formData.tags;
+      if (formData.keywords.length > 0) movieData.keywords = formData.keywords;
+      if (formData.officialWebsite?.trim())
         movieData.officialWebsite = formData.officialWebsite.trim();
-      }
-      if (Object.keys(formData.socialMedia).length > 0) {
+      if (Object.keys(formData.socialMedia).length > 0)
         movieData.socialMedia = formData.socialMedia;
-      }
 
       await setDoc(newMovieRef, movieData);
       console.log("Movie created successfully:", newMovieId);
 
+      // ✅ LOG CONTENT CREATE
+      await logContentCreate("movie", newMovieId, formData.title, "Movies", {
+        genre: formData.genre,
+        director: formData.director,
+        language: formData.language,
+        releaseDate: formData.releaseDate,
+        isPremium: formData.isPremium,
+        isFeatured: formData.isFeatured,
+        castCount: formData.cast.length,
+        crewCount: formData.crew.length,
+      });
+
       showToast("Movie created successfully!", "success");
       setLoading(false);
 
-      // Navigate to content list after 1.5 seconds
       setTimeout(() => {
         navigate("/admin/content");
       }, 1500);
     } catch (error: any) {
       console.error("Error creating movie:", error);
+
+      // ✅ LOG ERROR
+      await logError("Movies", `Failed to create movie: ${error.message}`, {
+        movieTitle: formData.title,
+        error: error.stack,
+        formData: {
+          genre: formData.genre,
+          director: formData.director,
+          releaseDate: formData.releaseDate,
+        },
+      });
+
       throw error;
     }
   };
@@ -1214,110 +1219,102 @@ const AddEditMovie: React.FC = () => {
       const movieRef = doc(db, "movies", movieId!);
 
       const updateData: Record<string, any> = {
-        // Basic Info
         title: formData.title.trim(),
         description: formData.description.trim(),
         videoUrl: formData.videoUrl.trim(),
-
-        // Details
         duration: formData.duration.trim(),
         releaseDate: formData.releaseDate.trim(),
         year: formData.year.trim(),
         language: formData.language,
         genre: formData.genre,
-
-        // People
         director: formData.director.trim(),
         cast: formData.cast,
         crew: formData.crew,
-
-        // Additional
         ageRating: formData.ageRating,
         certification: formData.certification,
-
-        // Status
         isActive: formData.isActive,
         isPublished: formData.isPublished,
         isPremium: formData.isPremium,
         isFeatured: formData.isFeatured,
         isTrending: formData.isTrending,
         isNewRelease: formData.isNewRelease,
-
-        // Timestamp
         updatedAt: serverTimestamp(),
       };
 
-      // Add optional fields only if they have values
-      if (formData.titleHindi?.trim()) {
+      // Add optional fields
+      if (formData.titleHindi?.trim())
         updateData.titleHindi = formData.titleHindi.trim();
-      }
-      if (formData.descriptionHindi?.trim()) {
+      if (formData.descriptionHindi?.trim())
         updateData.descriptionHindi = formData.descriptionHindi.trim();
-      }
-      if (formData.thumbnail?.trim()) {
+      if (formData.thumbnail?.trim())
         updateData.thumbnail = formData.thumbnail.trim();
-      }
-      if (formData.posterUrl?.trim()) {
+      if (formData.posterUrl?.trim())
         updateData.posterUrl = formData.posterUrl.trim();
-      }
-      if (formData.backdropUrl?.trim()) {
+      if (formData.backdropUrl?.trim())
         updateData.backdropUrl = formData.backdropUrl.trim();
-      }
-      if (formData.trailerUrl?.trim()) {
+      if (formData.trailerUrl?.trim())
         updateData.trailerUrl = formData.trailerUrl.trim();
-      }
-      if (formData.directorHindi?.trim()) {
+      if (formData.directorHindi?.trim())
         updateData.directorHindi = formData.directorHindi.trim();
-      }
-      if (formData.producer?.trim()) {
+      if (formData.producer?.trim())
         updateData.producer = formData.producer.trim();
-      }
-      if (formData.producerHindi?.trim()) {
+      if (formData.producerHindi?.trim())
         updateData.producerHindi = formData.producerHindi.trim();
-      }
-      if (formData.writer?.trim()) {
-        updateData.writer = formData.writer.trim();
-      }
-      if (formData.musicDirector?.trim()) {
+      if (formData.writer?.trim()) updateData.writer = formData.writer.trim();
+      if (formData.musicDirector?.trim())
         updateData.musicDirector = formData.musicDirector.trim();
-      }
-      if (formData.studio?.trim()) {
-        updateData.studio = formData.studio.trim();
-      }
-      if (formData.plotSummary?.trim()) {
+      if (formData.studio?.trim()) updateData.studio = formData.studio.trim();
+      if (formData.plotSummary?.trim())
         updateData.plotSummary = formData.plotSummary.trim();
-      }
-      if (formData.budget?.trim()) {
-        updateData.budget = formData.budget.trim();
-      }
-      if (formData.boxOfficeCollection?.trim()) {
+      if (formData.budget?.trim()) updateData.budget = formData.budget.trim();
+      if (formData.boxOfficeCollection?.trim())
         updateData.boxOfficeCollection = formData.boxOfficeCollection.trim();
-      }
-      if (formData.tags.length > 0) {
-        updateData.tags = formData.tags;
-      }
-      if (formData.keywords.length > 0) {
-        updateData.keywords = formData.keywords;
-      }
-      if (formData.officialWebsite?.trim()) {
+      if (formData.tags.length > 0) updateData.tags = formData.tags;
+      if (formData.keywords.length > 0) updateData.keywords = formData.keywords;
+      if (formData.officialWebsite?.trim())
         updateData.officialWebsite = formData.officialWebsite.trim();
-      }
-      if (Object.keys(formData.socialMedia).length > 0) {
+      if (Object.keys(formData.socialMedia).length > 0)
         updateData.socialMedia = formData.socialMedia;
-      }
 
       await updateDoc(movieRef, updateData);
       console.log("Movie updated successfully");
 
+      // ✅ LOG CONTENT UPDATE
+      await logContentUpdate(
+        "movie",
+        movieId!,
+        formData.title,
+        "Movies",
+        {
+          fieldsUpdated: Object.keys(updateData),
+        },
+        {
+          genre: formData.genre,
+          director: formData.director,
+          language: formData.language,
+          isPremium: formData.isPremium,
+          isFeatured: formData.isFeatured,
+          castCount: formData.cast.length,
+          crewCount: formData.crew.length,
+        },
+      );
+
       showToast("Movie updated successfully!", "success");
       setLoading(false);
 
-      // Navigate to content list after 1.5 seconds
       setTimeout(() => {
         navigate("/admin/content");
       }, 1500);
     } catch (error: any) {
       console.error("Error updating movie:", error);
+
+      // ✅ LOG ERROR
+      await logError("Movies", `Failed to update movie: ${error.message}`, {
+        movieId: movieId,
+        movieTitle: formData.title,
+        error: error.stack,
+      });
+
       throw error;
     }
   };
@@ -1421,11 +1418,18 @@ const AddEditMovie: React.FC = () => {
   };
 
   // Cast handlers
-  const handleAddCast = (cast: CastMember) => {
+  const handleAddCast = async (cast: CastMember) => {
     setFormData((prev) => ({
       ...prev,
       cast: [...prev.cast, { ...cast, id: Date.now().toString() }],
     }));
+
+    // ✅ LOG CAST ADD
+    await logCastAdd(cast.name, cast.role, "Movies", {
+      characterName: cast.characterName,
+      movieTitle: formData.title || "Untitled Movie",
+      movieId: movieId || "new",
+    });
   };
 
   const handleEditCast = (cast: CastMember) => {
@@ -1445,11 +1449,18 @@ const AddEditMovie: React.FC = () => {
   };
 
   // Crew handlers
-  const handleAddCrew = (crew: CrewMember) => {
+  const handleAddCrew = async (crew: CrewMember) => {
     setFormData((prev) => ({
       ...prev,
       crew: [...prev.crew, { ...crew, id: Date.now().toString() }],
     }));
+
+    // ✅ LOG CREW ADD
+    await logCrewAdd(crew.name, crew.role, "Movies", {
+      department: crew.department,
+      movieTitle: formData.title || "Untitled Movie",
+      movieId: movieId || "new",
+    });
   };
 
   const handleEditCrew = (crew: CrewMember) => {
@@ -1598,10 +1609,11 @@ const AddEditMovie: React.FC = () => {
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="Enter movie title"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.title
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.title
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.title && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1637,10 +1649,11 @@ const AddEditMovie: React.FC = () => {
                     onChange={handleInputChange}
                     placeholder="Enter movie description"
                     rows={4}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.description
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.description
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1704,14 +1717,14 @@ const AddEditMovie: React.FC = () => {
                     label="Video Input Method"
                   />
 
-                  {videoInputMode === 'upload' ? (
+                  {videoInputMode === "upload" ? (
                     <div className="mt-4">
                       <VideoUploader
                         onUploadComplete={(url, cdnUrl) => {
                           setFormData({
                             ...formData,
-                            videoUrl: url,           // Keep for backward compatibility
-                            videoCdnUrl: cdnUrl || url         // ADD THIS
+                            videoUrl: url, // Keep for backward compatibility
+                            videoCdnUrl: cdnUrl || url, // ADD THIS
                           });
                           if (errors.videoUrl) {
                             setErrors((prev) => {
@@ -1721,8 +1734,10 @@ const AddEditMovie: React.FC = () => {
                             });
                           }
                         }}
-                        currentUrl={formData.videoCdnUrl || formData.videoUrl}  // CDN first
+                        currentUrl={formData.videoCdnUrl || formData.videoUrl} // CDN first
+                        folder="movies/videos" // ✅ ADDED
                         maxSize={2000}
+                        acceptedFormats={["mp4", "mkv", "webm"]}
                       />
                     </div>
                   ) : (
@@ -1733,10 +1748,11 @@ const AddEditMovie: React.FC = () => {
                         value={formData.videoUrl}
                         onChange={handleInputChange}
                         placeholder="https://example.com/video.m3u8"
-                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.videoUrl
-                          ? "border-red-500"
-                          : "border-slate-200 dark:border-slate-700"
-                          } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                          errors.videoUrl
+                            ? "border-red-500"
+                            : "border-slate-200 dark:border-slate-700"
+                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                       />
                       {errors.videoUrl && (
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1760,17 +1776,21 @@ const AddEditMovie: React.FC = () => {
                     label="Thumbnail Input Method"
                   />
 
-                  {thumbnailInputMode === 'upload' ? (
+                  {thumbnailInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
-                            thumbnail: url,           // Keep for backward compatibility
-                            thumbnailCdnUrl: cdnUrl || url      // ADD THIS - Save to CDN field
+                            thumbnail: url,
+                            thumbnailCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.thumbnailCdnUrl || formData.thumbnail}  // CDN first
+                        currentUrl={
+                          formData.thumbnailCdnUrl || formData.thumbnail
+                        } // CDN first
                         folder="thumbnails"
                         aspectRatio="16:9"
                       />
@@ -1801,17 +1821,19 @@ const AddEditMovie: React.FC = () => {
                     label="Poster Input Method"
                   />
 
-                  {posterInputMode === 'upload' ? (
+                  {posterInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
-                            posterUrl: url,          // Keep for backward compatibility
-                            posterCdnUrl: cdnUrl || url        // ADD THIS
+                            posterUrl: url,
+                            posterCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.posterCdnUrl || formData.posterUrl}  // CDN first
+                        currentUrl={formData.posterCdnUrl || formData.posterUrl} // CDN first
                         folder="posters"
                         aspectRatio="2:3"
                       />
@@ -1842,17 +1864,21 @@ const AddEditMovie: React.FC = () => {
                     label="Backdrop Input Method"
                   />
 
-                  {backdropInputMode === 'upload' ? (
+                  {backdropInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
-                            backdropUrl: url,        // Keep for backward compatibility
-                            backdropCdnUrl: cdnUrl || url      // ADD THIS
+                            backdropUrl: url,
+                            backdropCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.backdropCdnUrl || formData.backdropUrl}  // CDN first
+                        currentUrl={
+                          formData.backdropCdnUrl || formData.backdropUrl
+                        } // CDN first
                         folder="backdrops"
                         aspectRatio="16:9"
                       />
@@ -1883,18 +1909,22 @@ const AddEditMovie: React.FC = () => {
                     label="Trailer Input Method"
                   />
 
-                  {trailerInputMode === 'upload' ? (
+                  {trailerInputMode === "upload" ? (
                     <div className="mt-4">
                       <VideoUploader
                         onUploadComplete={(url, cdnUrl) => {
                           setFormData({
                             ...formData,
-                            trailerUrl: url,         // Keep for backward compatibility
-                            trailerCdnUrl: cdnUrl || url       // ADD THIS
+                            trailerUrl: url, // Keep for backward compatibility
+                            trailerCdnUrl: cdnUrl || url, // ADD THIS
                           });
                         }}
-                        currentUrl={formData.trailerCdnUrl || formData.trailerUrl}  // CDN first
+                        folder="movies/trailers"
+                        currentUrl={
+                          formData.trailerCdnUrl || formData.trailerUrl
+                        } // CDN first
                         maxSize={500}
+                        acceptedFormats={["mp4", "webm"]}
                       />
                     </div>
                   ) : (
@@ -1934,10 +1964,11 @@ const AddEditMovie: React.FC = () => {
                     value={formData.duration}
                     onChange={handleInputChange}
                     placeholder="2h 30m"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.duration
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.duration
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.duration && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1957,10 +1988,11 @@ const AddEditMovie: React.FC = () => {
                     name="releaseDate"
                     value={formData.releaseDate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.releaseDate
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.releaseDate
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.releaseDate && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1981,10 +2013,11 @@ const AddEditMovie: React.FC = () => {
                     value={formData.year}
                     onChange={handleInputChange}
                     placeholder="2024"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.year
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.year
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.year && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -2111,10 +2144,11 @@ const AddEditMovie: React.FC = () => {
                       e.key === "Enter" && (e.preventDefault(), addGenre())
                     }
                     placeholder="Enter genre and press Enter"
-                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.genre
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.genre
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   <motion.button
                     type="button"
@@ -2178,10 +2212,11 @@ const AddEditMovie: React.FC = () => {
                     value={formData.director}
                     onChange={handleInputChange}
                     placeholder="Director name"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.director
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.director
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.director && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">

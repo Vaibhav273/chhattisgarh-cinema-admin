@@ -43,9 +43,19 @@ import type {
   CrewMember,
 } from "../../types";
 
-import { MediaSelector, type MediaInputMode } from "../../components/admin/MediaSelector";
+import {
+  MediaSelector,
+  type MediaInputMode,
+} from "../../components/admin/MediaSelector";
 import { VideoUploader } from "../../components/admin/VideoUploader";
 import { ImageUploader } from "../../components/admin/ImageUploader";
+import {
+  logContentCreate,
+  logContentUpdate,
+  logCastAdd,
+  logCrewAdd,
+  logError,
+} from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 TOAST NOTIFICATION (Same as Movie)
@@ -152,8 +162,10 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
     likes: 0,
   });
 
-  const [episodeVideoMode, setEpisodeVideoMode] = useState<MediaInputMode>('url');
-  const [episodeThumbnailMode, setEpisodeThumbnailMode] = useState<MediaInputMode>('url');
+  const [episodeVideoMode, setEpisodeVideoMode] =
+    useState<MediaInputMode>("url");
+  const [episodeThumbnailMode, setEpisodeThumbnailMode] =
+    useState<MediaInputMode>("url");
 
   useEffect(() => {
     if (initialData) {
@@ -339,18 +351,20 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
                 label=""
               />
 
-              {episodeVideoMode === 'upload' ? (
+              {episodeVideoMode === "upload" ? (
                 <div className="mt-4">
                   <VideoUploader
                     onUploadComplete={(url, cdnUrl) => {
                       setEpisodeData({
                         ...episodeData,
                         videoUrl: url,
-                        videoCdnUrl: cdnUrl || url  // ADD THIS
+                        videoCdnUrl: cdnUrl || url, // ADD THIS
                       });
                     }}
-                    currentUrl={episodeData.videoCdnUrl || episodeData.videoUrl}  // CDN first
+                    currentUrl={episodeData.videoCdnUrl || episodeData.videoUrl} // CDN first
+                    folder="webseries/episodes" // ✅ ADDED
                     maxSize={1000}
+                    acceptedFormats={["mp4", "mkv", "webm"]}
                   />
                 </div>
               ) : (
@@ -359,7 +373,10 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
                     type="text"
                     value={episodeData.videoUrl}
                     onChange={(e) =>
-                      setEpisodeData({ ...episodeData, videoUrl: e.target.value })
+                      setEpisodeData({
+                        ...episodeData,
+                        videoUrl: e.target.value,
+                      })
                     }
                     placeholder="https://example.com/video.m3u8"
                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -380,17 +397,21 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
                 label=""
               />
 
-              {episodeThumbnailMode === 'upload' ? (
+              {episodeThumbnailMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url) => {
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { url, cdnUrl } = urls[0];
                       setEpisodeData({
                         ...episodeData,
                         thumbnail: url,
-                        thumbnailCdnUrl: url  // ADD THIS
+                        thumbnailCdnUrl: cdnUrl,
                       });
                     }}
-                    currentUrl={episodeData.thumbnailCdnUrl || episodeData.thumbnail}  // CDN first
+                    currentUrl={
+                      episodeData.thumbnailCdnUrl || episodeData.thumbnail
+                    } // CDN first
                     folder="webseries/episodes"
                     aspectRatio="16:9"
                   />
@@ -401,7 +422,10 @@ const EpisodeModal: React.FC<EpisodeModalProps> = ({
                     type="text"
                     value={episodeData.thumbnail}
                     onChange={(e) =>
-                      setEpisodeData({ ...episodeData, thumbnail: e.target.value })
+                      setEpisodeData({
+                        ...episodeData,
+                        thumbnail: e.target.value,
+                      })
                     }
                     placeholder="https://example.com/thumbnail.jpg"
                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -603,7 +627,7 @@ const CastModal: React.FC<CastModalProps> = ({
     socialMedia: {},
     order: 0,
   });
-  const [castImageMode, setCastImageMode] = useState<MediaInputMode>('url');
+  const [castImageMode, setCastImageMode] = useState<MediaInputMode>("url");
   useEffect(() => {
     if (initialData) {
       setCastData(initialData);
@@ -780,11 +804,13 @@ const CastModal: React.FC<CastModalProps> = ({
                 label=""
               />
 
-              {castImageMode === 'upload' ? (
+              {castImageMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url, cdnUrl) => {
-                      setCastData({ ...castData, profileImage: cdnUrl || url });
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { cdnUrl } = urls[0];
+                      setCastData({ ...castData, profileImage: cdnUrl });
                     }}
                     currentUrl={castData.profileImage}
                     folder="webseries/cast"
@@ -965,7 +991,7 @@ const CrewModal: React.FC<CrewModalProps> = ({
     socialMedia: {},
     order: 0,
   });
-  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>('url');
+  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>("url");
   useEffect(() => {
     if (initialData) {
       setCrewData(initialData);
@@ -1111,11 +1137,13 @@ const CrewModal: React.FC<CrewModalProps> = ({
                 label=""
               />
 
-              {crewImageMode === 'upload' ? (
+              {crewImageMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url, cdnUrl) => {
-                      setCrewData({ ...crewData, profileImage: cdnUrl || url });
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { cdnUrl } = urls[0];
+                      setCrewData({ ...crewData, profileImage: cdnUrl });
                     }}
                     currentUrl={crewData.profileImage}
                     folder="webseries/crew"
@@ -1279,17 +1307,32 @@ const AddEditWebSeries: React.FC = () => {
   const [writerInput, setWriterInput] = useState("");
   const [tagInput, setTagInput] = useState("");
 
-  const [trailerInputMode, setTrailerInputMode] = useState<MediaInputMode>('url');
-  const [thumbnailInputMode, setThumbnailInputMode] = useState<MediaInputMode>('url');
-  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>('url');
-  const [backdropInputMode, setBackdropInputMode] = useState<MediaInputMode>('url');
+  const [trailerInputMode, setTrailerInputMode] =
+    useState<MediaInputMode>("url");
+  const [thumbnailInputMode, setThumbnailInputMode] =
+    useState<MediaInputMode>("url");
+  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>("url");
+  const [backdropInputMode, setBackdropInputMode] =
+    useState<MediaInputMode>("url");
 
-  const handleAddCast = (cast: CastMember) => {
-    setFormData((prev) => ({
-      ...prev,
-      cast: [...(prev.cast || []), cast],
-    }));
-  };
+  const handleAddCast = async (cast: CastMember) => {
+  setFormData((prev) => ({
+    ...prev,
+    cast: [...(prev.cast || []), cast],
+  }));
+
+  // ✅ LOG CAST ADD
+  await logCastAdd(
+    cast.name,
+    cast.role,
+    "Web Series",
+    {
+      characterName: cast.characterName,
+      seriesTitle: formData.title || "Untitled Series",
+      seriesId: seriesId || "new",
+    }
+  );
+};
 
   const handleEditCast = (cast: CastMember) => {
     const index = castModal.index;
@@ -1300,12 +1343,24 @@ const AddEditWebSeries: React.FC = () => {
   };
 
   // Crew handlers
-  const handleAddCrew = (crew: CrewMember) => {
-    setFormData((prev) => ({
-      ...prev,
-      crew: [...(prev.crew || []), crew],
-    }));
-  };
+  const handleAddCrew = async (crew: CrewMember) => {
+  setFormData((prev) => ({
+    ...prev,
+    crew: [...(prev.crew || []), crew],
+  }));
+
+  // ✅ LOG CREW ADD
+  await logCrewAdd(
+    crew.name,
+    crew.role,
+    "Web Series",
+    {
+      department: crew.department,
+      seriesTitle: formData.title || "Untitled Series",
+      seriesId: seriesId || "new",
+    }
+  );
+};
 
   const handleEditCrew = (crew: CrewMember) => {
     const index = crewModal.index;
@@ -1331,7 +1386,7 @@ const AddEditWebSeries: React.FC = () => {
 
       if (!seriesDoc.exists()) {
         showToast("Web series not found", "error");
-        navigate("/admin/content");
+        navigate("/admin/content/series");
         return;
       }
 
@@ -1346,29 +1401,37 @@ const AddEditWebSeries: React.FC = () => {
           seriesData.seasons && seriesData.seasons.length > 0
             ? seriesData.seasons
             : [
-              {
-                id: `season-1-${Date.now()}`,
-                seasonNumber: 1,
-                title: "Season 1",
-                titleHindi: "सीजन 1",
-                description: "",
-                descriptionHindi: "",
-                posterUrl: "",
-                year: "",
-                releaseDate: "",
-                totalEpisodes: 0,
-                episodes: [],
-                isActive: true,
-              },
-            ],
+                {
+                  id: `season-1-${Date.now()}`,
+                  seasonNumber: 1,
+                  title: "Season 1",
+                  titleHindi: "सीजन 1",
+                  description: "",
+                  descriptionHindi: "",
+                  posterUrl: "",
+                  year: "",
+                  releaseDate: "",
+                  totalEpisodes: 0,
+                  episodes: [],
+                  isActive: true,
+                },
+              ],
       });
 
       setFetchingSeries(false);
     } catch (error) {
       console.error("Error fetching series:", error);
+       await logError(
+    "Web Series",
+    `Failed to fetch series data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    {
+      seriesId: seriesId,
+      error: error instanceof Error ? error.stack : 'Unknown error',
+    }
+  );
       showToast("Failed to load series data", "error");
       setFetchingSeries(false);
-      navigate("/admin/content");
+      navigate("/admin/content/series");
     }
   };
 
@@ -1414,11 +1477,11 @@ const AddEditWebSeries: React.FC = () => {
 
       // Calculate totals
       const totalSeasons = formData.seasons?.length || 0;
-      const totalEpisodes =
-        formData.seasons?.reduce(
-          (total, season) => total + (season.episodes?.length || 0),
-          0,
-        ) || 0;
+const totalEpisodes = formData.seasons?.reduce(
+  (sum, season) => sum + (season.episodes?.length || 0),
+  0
+) || 0;
+
 
       if (isEditMode) {
         await handleUpdateSeries(totalSeasons, totalEpisodes);
@@ -1547,12 +1610,46 @@ const AddEditWebSeries: React.FC = () => {
       }
 
       await setDoc(newSeriesRef, seriesData);
+      await logContentCreate(
+  "webseries",
+  newSeriesId,
+  formData.title!,
+  "Web Series",
+  {
+    genre: formData.genre,
+    creator: formData.creator,
+    language: formData.language,
+    totalSeasons,
+    totalEpisodes,
+    isPremium: formData.isPremium,
+    isFeatured: formData.isFeatured,
+    status: formData.status,
+    castCount: formData.cast?.length || 0,
+    crewCount: formData.crew?.length || 0,
+  }
+);
       showToast("Web series created successfully!", "success");
       setLoading(false);
 
-      setTimeout(() => navigate("/admin/content"), 1500);
+      setTimeout(() => navigate("/admin/content/series"), 1500);
     } catch (error: any) {
       console.error("Error creating series:", error);
+      await logError(
+    "Web Series",
+    `Failed to create web series: ${error.message}`,
+    {
+      seriesTitle: formData.title,
+      error: error.stack,
+      formData: {
+        genre: formData.genre,
+        creator: formData.creator,
+        totalSeasons,
+        totalEpisodes,
+      },
+    }
+  );
+  
+  showToast(error.message || "Failed to create web series", "error");
       throw error;
     }
   };
@@ -1625,12 +1722,44 @@ const AddEditWebSeries: React.FC = () => {
       }
 
       await updateDoc(doc(db, "webseries", seriesId!), updateData);
+      await logContentUpdate(
+  "webseries",
+  seriesId!,
+  formData.title!,
+  "Web Series",
+  {
+    fieldsUpdated: Object.keys(updateData),
+  },
+  {
+    genre: formData.genre,
+    creator: formData.creator,
+    language: formData.language,
+    totalSeasons,
+    totalEpisodes,
+    isPremium: formData.isPremium,
+    isFeatured: formData.isFeatured,
+    status: formData.status,
+    castCount: formData.cast?.length || 0,
+    crewCount: formData.crew?.length || 0,
+  }
+);
       showToast("Web series updated successfully!", "success");
       setLoading(false);
 
-      setTimeout(() => navigate("/admin/content/webseries"), 1500);
+      setTimeout(() => navigate("/admin/content/series"), 1500);
     } catch (error: any) {
       console.error("Error updating series:", error);
+      await logError(
+    "Web Series",
+    `Failed to update web series: ${error.message}`,
+    {
+      seriesId: seriesId,
+      seriesTitle: formData.title,
+      error: error.stack,
+    }
+  );
+  
+  showToast(error.message || "Failed to update web series", "error");
       throw error;
     }
   };
@@ -1766,11 +1895,11 @@ const AddEditWebSeries: React.FC = () => {
       seasons: prev.seasons?.map((season, si) =>
         si === seasonIndex
           ? {
-            ...season,
-            episodes: season.episodes?.map((ep, ei) =>
-              ei === episodeIndex ? episode : ep,
-            ),
-          }
+              ...season,
+              episodes: season.episodes?.map((ep, ei) =>
+                ei === episodeIndex ? episode : ep,
+              ),
+            }
           : season,
       ),
     }));
@@ -1783,11 +1912,11 @@ const AddEditWebSeries: React.FC = () => {
         seasons: prev.seasons?.map((season, si) =>
           si === seasonIndex
             ? {
-              ...season,
-              episodes: season.episodes?.filter(
-                (_, ei) => ei !== episodeIndex,
-              ),
-            }
+                ...season,
+                episodes: season.episodes?.filter(
+                  (_, ei) => ei !== episodeIndex,
+                ),
+              }
             : season,
         ),
       }));
@@ -1878,7 +2007,7 @@ const AddEditWebSeries: React.FC = () => {
                   <motion.button
                     whileHover={{ scale: 1.1, x: -5 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => navigate("/admin/content")}
+                    onClick={() => navigate("/admin/content/series")}
                     className="p-3 bg-white/20 backdrop-blur-xl rounded-xl hover:bg-white/30 transition-all"
                   >
                     <ArrowLeft size={24} />
@@ -1934,10 +2063,11 @@ const AddEditWebSeries: React.FC = () => {
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="Enter series title"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.title
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.title
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.title && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1971,10 +2101,11 @@ const AddEditWebSeries: React.FC = () => {
                     onChange={handleInputChange}
                     placeholder="Enter series description"
                     rows={4}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.description
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.description
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -2008,10 +2139,11 @@ const AddEditWebSeries: React.FC = () => {
                     value={formData.creator}
                     onChange={handleInputChange}
                     placeholder="Creator name"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.creator
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.creator
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.creator && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -2161,17 +2293,21 @@ const AddEditWebSeries: React.FC = () => {
                     label="Thumbnail Input Method"
                   />
 
-                  {thumbnailInputMode === 'upload' ? (
+                  {thumbnailInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
                             thumbnail: url,
-                            thumbnailCdnUrl: cdnUrl || url  // ADD THIS
+                            thumbnailCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.thumbnailCdnUrl || formData.thumbnail}  // CDN first
+                        currentUrl={
+                          formData.thumbnailCdnUrl || formData.thumbnail
+                        } // CDN first
                         folder="webseries/thumbnails"
                         aspectRatio="16:9"
                       />
@@ -2202,17 +2338,19 @@ const AddEditWebSeries: React.FC = () => {
                     label="Poster Input Method"
                   />
 
-                  {posterInputMode === 'upload' ? (
+                  {posterInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
                             posterUrl: url,
-                            posterCdnUrl: cdnUrl || url  // ADD THIS
+                            posterCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.posterCdnUrl || formData.posterUrl}  // CDN first
+                        currentUrl={formData.posterCdnUrl || formData.posterUrl} // CDN first
                         folder="webseries/posters"
                         aspectRatio="2:3"
                       />
@@ -2243,17 +2381,21 @@ const AddEditWebSeries: React.FC = () => {
                     label="Backdrop Input Method"
                   />
 
-                  {backdropInputMode === 'upload' ? (
+                  {backdropInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
                             backdropUrl: url,
-                            backdropCdnUrl: cdnUrl || url  // ADD THIS
+                            backdropCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.backdropCdnUrl || formData.backdropUrl}  // CDN first
+                        currentUrl={
+                          formData.backdropCdnUrl || formData.backdropUrl
+                        } // CDN first
                         folder="webseries/backdrops"
                         aspectRatio="16:9"
                       />
@@ -2284,18 +2426,22 @@ const AddEditWebSeries: React.FC = () => {
                     label="Trailer Input Method"
                   />
 
-                  {trailerInputMode === 'upload' ? (
+                  {trailerInputMode === "upload" ? (
                     <div className="mt-4">
                       <VideoUploader
                         onUploadComplete={(url, cdnUrl) => {
                           setFormData({
                             ...formData,
                             trailerUrl: url,
-                            trailerCdnUrl: cdnUrl || url  // ADD THIS
+                            trailerCdnUrl: cdnUrl || url, // ADD THIS
                           });
                         }}
-                        currentUrl={formData.trailerCdnUrl || formData.trailerUrl}  // CDN first
+                        currentUrl={
+                          formData.trailerCdnUrl || formData.trailerUrl
+                        } // CDN first
+                        folder="webseries/trailers" // ✅ ADDED
                         maxSize={500}
+                        acceptedFormats={["mp4", "webm"]}
                       />
                     </div>
                   ) : (
@@ -2334,10 +2480,11 @@ const AddEditWebSeries: React.FC = () => {
                       }
                     }}
                     placeholder="Enter genre and press Enter"
-                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.genre
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.genre
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   <motion.button
                     type="button"
@@ -3368,7 +3515,7 @@ const AddEditWebSeries: React.FC = () => {
                 type="button"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => navigate("/admin/content")}
+                onClick={() => navigate("/admin/content/series")}
                 className="px-8 py-4 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
               >
                 Cancel

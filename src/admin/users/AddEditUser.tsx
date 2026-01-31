@@ -45,6 +45,7 @@ import {
 import { auth, db } from "../../config/firebase";
 import type { User as UserType } from "../../types/user";
 import { ROLE_CONFIGS, type UserRole } from "../../types/roles";
+import { logUserManagementAction } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════
 // 🎉 TOAST NOTIFICATION
@@ -208,12 +209,12 @@ const AddEditUser: React.FC = () => {
     if (!value) return null;
 
     // If it's a Firestore Timestamp
-    if (value.toDate && typeof value.toDate === 'function') {
+    if (value.toDate && typeof value.toDate === "function") {
       return value.toDate();
     }
 
     // If it's a string
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       return new Date(value);
     }
 
@@ -245,28 +246,28 @@ const AddEditUser: React.FC = () => {
 
       const safeRole: UserRole =
         userData.role &&
-          [
-            "super_admin",
-            "admin",
-            "moderator",
-            "creator",
-            "premium",
-            "viewer",
-          ].includes(userData.role)
+        [
+          "super_admin",
+          "admin",
+          "moderator",
+          "creator",
+          "premium",
+          "viewer",
+        ].includes(userData.role)
           ? userData.role
           : "viewer";
 
       const safeStatus: FormUserStatus =
         userData.status &&
-          ["active", "banned", "suspended"].includes(userData.status)
+        ["active", "banned", "suspended"].includes(userData.status)
           ? (userData.status as FormUserStatus)
           : "active";
 
       const safeSubscriptionStatus: FormSubscriptionStatus =
         userData.subscriptionStatus &&
-          ["active", "inactive", "cancelled", "expired"].includes(
-            userData.subscriptionStatus,
-          )
+        ["active", "inactive", "cancelled", "expired"].includes(
+          userData.subscriptionStatus,
+        )
           ? (userData.subscriptionStatus as FormSubscriptionStatus)
           : "inactive";
 
@@ -307,10 +308,12 @@ const AddEditUser: React.FC = () => {
       const activityQuery = query(
         collection(db, "users", userId!, "activityLog"),
         orderBy("timestamp", "desc"),
-        limit(20)
+        limit(20),
       );
       const activitySnapshot = await getDocs(activityQuery);
-      const activities = activitySnapshot.docs.map((doc) => doc.data()) as ActivityLogEntry[];
+      const activities = activitySnapshot.docs.map((doc) =>
+        doc.data(),
+      ) as ActivityLogEntry[];
       setActivityLog(activities);
     } catch (error) {
       console.error("Error fetching activity log:", error);
@@ -501,6 +504,19 @@ const AddEditUser: React.FC = () => {
 
       console.log("✅ All user data initialized");
 
+      await logUserManagementAction(
+        "user_created",
+        "success",
+        `Created user account for ${formData.email}`,
+        auth.currentUser!,
+        {
+          userId: newUserId,
+          email: formData.email,
+          role: formData.role,
+          isPremium: formData.isPremium,
+        },
+      );
+
       showToast("User created successfully!", "success");
       setLoading(false);
 
@@ -579,6 +595,17 @@ const AddEditUser: React.FC = () => {
         details: "User account updated by admin",
       });
 
+      await logUserManagementAction(
+        "user_updated",
+        "success",
+        `Updated user account for ${formData.email}`,
+        auth.currentUser!,
+        {
+          userId: userId,
+          updatedFields: ["displayName", "role", "status"], // List changed fields
+        },
+      );
+
       showToast("User updated successfully!", "success");
       setLoading(false);
 
@@ -622,7 +649,10 @@ const AddEditUser: React.FC = () => {
         isPremium: true,
       });
 
-      showToast(`Subscription extended by ${extendMonths} month(s)!`, "success");
+      showToast(
+        `Subscription extended by ${extendMonths} month(s)!`,
+        "success",
+      );
       setShowSubscriptionModal(false);
       fetchActivityLog();
     } catch (error) {
@@ -756,7 +786,10 @@ const AddEditUser: React.FC = () => {
     } else if (type === "number") {
       setFormData((prev) => ({ ...prev, [name]: parseInt(value) || 0 }));
     } else if (type === "date") {
-      setFormData((prev) => ({ ...prev, [name]: value ? new Date(value) : null }));
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value ? new Date(value) : null,
+      }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -777,22 +810,22 @@ const AddEditUser: React.FC = () => {
 
   const formatDate = (date: Date | null): string => {
     if (!date) return "N/A";
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
   const formatActivityTimestamp = (timestamp: any): string => {
     if (!timestamp) return "N/A";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -845,7 +878,9 @@ const AddEditUser: React.FC = () => {
             >
               <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
                 <h3 className="text-2xl font-black">Extend Subscription</h3>
-                <p className="text-white/90 mt-1">Add more months to subscription</p>
+                <p className="text-white/90 mt-1">
+                  Add more months to subscription
+                </p>
               </div>
 
               <div className="p-6 space-y-4">
@@ -868,7 +903,9 @@ const AddEditUser: React.FC = () => {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => setExtendMonths(Math.max(1, extendMonths - 1))}
+                      onClick={() =>
+                        setExtendMonths(Math.max(1, extendMonths - 1))
+                      }
                       className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-xl flex items-center justify-center"
                     >
                       <Minus size={20} />
@@ -876,7 +913,9 @@ const AddEditUser: React.FC = () => {
                     <input
                       type="number"
                       value={extendMonths}
-                      onChange={(e) => setExtendMonths(parseInt(e.target.value) || 1)}
+                      onChange={(e) =>
+                        setExtendMonths(parseInt(e.target.value) || 1)
+                      }
                       min="1"
                       max="12"
                       className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-bold text-xl text-slate-800 dark:text-white"
@@ -884,7 +923,9 @@ const AddEditUser: React.FC = () => {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => setExtendMonths(Math.min(12, extendMonths + 1))}
+                      onClick={() =>
+                        setExtendMonths(Math.min(12, extendMonths + 1))
+                      }
                       className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-xl flex items-center justify-center"
                     >
                       <Plus size={20} />
@@ -895,10 +936,11 @@ const AddEditUser: React.FC = () => {
                       <button
                         key={months}
                         onClick={() => setExtendMonths(months)}
-                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${extendMonths === months
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                          }`}
+                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
+                          extendMonths === months
+                            ? "bg-purple-500 text-white"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                        }`}
                       >
                         {months}M
                       </button>
@@ -908,7 +950,20 @@ const AddEditUser: React.FC = () => {
 
                 <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
                   <p className="text-sm text-purple-600 dark:text-purple-400">
-                    New end date will be: <strong>{formatDate(new Date(new Date(formData.subscriptionEndDate || new Date()).setMonth(new Date(formData.subscriptionEndDate || new Date()).getMonth() + extendMonths)))}</strong>
+                    New end date will be:{" "}
+                    <strong>
+                      {formatDate(
+                        new Date(
+                          new Date(
+                            formData.subscriptionEndDate || new Date(),
+                          ).setMonth(
+                            new Date(
+                              formData.subscriptionEndDate || new Date(),
+                            ).getMonth() + extendMonths,
+                          ),
+                        ),
+                      )}
+                    </strong>
                   </p>
                 </div>
               </div>
@@ -1016,10 +1071,15 @@ const AddEditUser: React.FC = () => {
                   >
                     <div className="w-2 h-2 bg-purple-500 rounded-full mt-2" />
                     <div className="flex-1">
-                      <p className="font-bold text-slate-800 dark:text-white">{log.action}</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{log.details}</p>
+                      <p className="font-bold text-slate-800 dark:text-white">
+                        {log.action}
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {log.details}
+                      </p>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        {formatActivityTimestamp(log.timestamp)} • by {log.performedBy}
+                        {formatActivityTimestamp(log.timestamp)} • by{" "}
+                        {log.performedBy}
                       </p>
                     </div>
                   </motion.div>
@@ -1113,10 +1173,11 @@ const AddEditUser: React.FC = () => {
                     value={formData.displayName}
                     onChange={handleInputChange}
                     placeholder="John Doe"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.displayName
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.displayName
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.displayName && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1138,11 +1199,13 @@ const AddEditUser: React.FC = () => {
                     onChange={handleInputChange}
                     placeholder="john@example.com"
                     disabled={isEditMode}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.email
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white ${isEditMode ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.email
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white ${
+                      isEditMode ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                   />
                   {errors.email && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1163,10 +1226,11 @@ const AddEditUser: React.FC = () => {
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
                     placeholder="+91 1234567890"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.phoneNumber
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.phoneNumber
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.phoneNumber && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1193,10 +1257,11 @@ const AddEditUser: React.FC = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder={isEditMode ? "••••••••" : "Min 6 characters"}
-                      className={`w-full px-4 py-3 pr-12 bg-slate-50 dark:bg-slate-800 border ${errors.password
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                      className={`w-full px-4 py-3 pr-12 bg-slate-50 dark:bg-slate-800 border ${
+                        errors.password
+                          ? "border-red-500"
+                          : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                     />
                     <button
                       type="button"
@@ -1352,7 +1417,13 @@ const AddEditUser: React.FC = () => {
                       <input
                         type="date"
                         name="subscriptionEndDate"
-                        value={formData.subscriptionEndDate ? new Date(formData.subscriptionEndDate).toISOString().split('T')[0] : ''}
+                        value={
+                          formData.subscriptionEndDate
+                            ? new Date(formData.subscriptionEndDate)
+                                .toISOString()
+                                .split("T")[0]
+                            : ""
+                        }
                         onChange={handleInputChange}
                         className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
                       />
@@ -1399,10 +1470,11 @@ const AddEditUser: React.FC = () => {
                     onChange={handleInputChange}
                     min="1"
                     max="10"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.maxDevices
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.maxDevices
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.maxDevices && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1424,10 +1496,11 @@ const AddEditUser: React.FC = () => {
                     onChange={handleInputChange}
                     min="1"
                     max="10"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.maxProfiles
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.maxProfiles
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.maxProfiles && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1449,10 +1522,11 @@ const AddEditUser: React.FC = () => {
                       value={formData.rewardPoints}
                       onChange={handleInputChange}
                       min="0"
-                      className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.rewardPoints
-                        ? "border-red-500"
-                        : "border-slate-200 dark:border-slate-700"
-                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                      className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                        errors.rewardPoints
+                          ? "border-red-500"
+                          : "border-slate-200 dark:border-slate-700"
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                     />
                     {isEditMode && (
                       <motion.button

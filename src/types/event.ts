@@ -106,11 +106,31 @@ export interface Event {
     hasPhotoBooth?: boolean;
     hasFoodStalls?: boolean;
     hasGiftBags?: boolean;
-    trailerMetadata?: string;
-    promoVideoMetadata: string,
-    liveStreamMetadata: string,
+    trailerMetadata?: VideoMetadata;
+    promoVideoMetadata: VideoMetadata,
+    liveStreamMetadata: VideoMetadata,
 }
 
+
+export interface VideoMetadata {
+    originalUrl: string;
+    fileName: string;
+    fileSize: number;
+    uploadedAt: Date;
+    encodingSettings: {
+        codec: string;
+        container: string;
+        resolutions: string[];
+        maxBitrate: number;
+        audioBitrate: number;
+        audioCodec: string;
+        adaptiveBitrate: boolean;
+        generateThumbnails: boolean;
+        thumbnailCount: number;
+    };
+    encodingStatus: 'pending' | 'skipped' | 'completed' | 'failed';
+    qualitiesGenerated?: string[];
+}
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 🎟️ TICKET TIER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

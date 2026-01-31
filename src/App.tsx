@@ -103,6 +103,8 @@ import AnalyticsGenerator from "./admin/analytics/AnalyticsGenerator";
 import AnalyticsDashboard from "./admin/analytics/AnalyticsDashboard";
 import NotificationToast from "./components/notifications/NotificationToast";
 import AddEditEvent from "./admin/events/AddEditEvent";
+import EventDetail from "./admin/events/EventDetail";
+import ActivityLogs from "./admin/ActivityLogs";
 
 const App: React.FC = () => {
   return (
@@ -141,7 +143,7 @@ const App: React.FC = () => {
                 element={<Navigate to="/admin/dashboard" replace />}
               />
               <Route path="dashboard" element={<AdminDashboard />} />
-
+              <Route path="activity-logs" element={<ActivityLogs />} />
               {/* Content Management */}
               <Route
                 path="content/movies"
@@ -231,7 +233,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* User Management */}
               <Route
                 path="users/all"
@@ -287,7 +288,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Moderation */}
               <Route
                 path="moderation/comments"
@@ -322,7 +322,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Finance */}
               <Route
                 path="finance/subscriptions"
@@ -368,7 +367,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Analytics */}
               <Route
                 path="analytics/dashboard"
@@ -425,7 +423,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Marketing */}
               <Route
                 path="marketing/banners"
@@ -493,7 +490,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Technical */}
               <Route
                 path="technical/cdn"
@@ -539,7 +535,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Events */}
               <Route
                 path="events/all"
@@ -564,6 +559,29 @@ const App: React.FC = () => {
                 }
               />
               <Route
+                path="events/edit/:eventId"
+                element={
+                  <ProtectedRoute
+                    requireAdmin
+                    allowedRoles={["content_manager", "super_admin"]}
+                  >
+                    <AddEditEvent />
+                  </ProtectedRoute>
+                }
+              />
+              edit
+              <Route
+                path="events/view/:eventId"
+                element={
+                  <ProtectedRoute
+                    requireAdmin
+                    allowedRoles={["content_manager", "super_admin"]}
+                  >
+                    <EventDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="events/bookings"
                 element={
                   <ProtectedRoute
@@ -574,7 +592,6 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-
               {/* Settings */}
               <Route
                 path="settings/platform"

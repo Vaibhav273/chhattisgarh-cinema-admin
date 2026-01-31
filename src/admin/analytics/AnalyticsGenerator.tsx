@@ -13,6 +13,7 @@ import {
     RefreshCw,
 } from 'lucide-react';
 import { auth } from '../../config/firebase';
+import { logSystemEvent, logError } from '../../utils/activityLogger';
 
 interface GenerationResult {
     date?: string;
@@ -50,73 +51,121 @@ const AnalyticsGenerator: React.FC = () => {
     const FUNCTION_BASE_URL = "https://us-central1-chhattisgarhi-cinema.cloudfunctions.net/"; // ✅ Replace with yours
 
     // ✅ UPDATED callFunction with specific loading state
-    const callFunction = async (
-        functionName: string,
-        params: Record<string, string> = {},
-        setLoading: (loading: boolean) => void // ✅ Pass specific loading setter
-    ) => {
-        setLoading(true);
-        setResult(null);
+   const callFunction = async (
+    functionName: string,
+    params: Record<string, string> = {},
+    setLoading: (loading: boolean) => void,
+    actionDescription: string // ✅ NEW PARAMETER
+) => {
+    setLoading(true);
+    setResult(null);
 
-        try {
-            const user = auth.currentUser;
-            if (!user) {
-                throw new Error("Not authenticated");
-            }
-
-            const token = await user.getIdToken();
-            const queryString = new URLSearchParams(params).toString();
-            const url = `${FUNCTION_BASE_URL}/${functionName}${queryString ? `?${queryString}` : ''}`;
-
-            console.log(`📞 Calling function: ${url}`);
-
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            const data = await response.json();
-            setResult(data);
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Function call failed');
-            }
-
-            console.log('✅ Function response:', data);
-        } catch (error) {
-            console.error('❌ Error calling function:', error);
-            setResult({
-                success: false,
-                message: `Error: ${error instanceof Error ? error.message : String(error)}`
-            });
-        } finally {
-            setLoading(false);
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new Error("Not authenticated");
         }
-    };
+
+        const token = await user.getIdToken();
+        const queryString = new URLSearchParams(params).toString();
+        const url = `${FUNCTION_BASE_URL}/${functionName}${queryString ? `?${queryString}` : ''}`;
+
+        console.log(`📞 Calling function: ${url}`);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = await response.json();
+        setResult(data);
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Function call failed');
+        }
+
+        console.log('✅ Function response:', data);
+
+        // ✅ LOG SUCCESSFUL GENERATION
+        await logSystemEvent(
+            'analytics_generation',
+            actionDescription,
+            'Analytics',
+            {
+                functionName,
+                parameters: params,
+                success: true,
+                stats: data.stats,
+                resultsCount: data.results?.length || 0,
+            }
+        );
+
+    } catch (error) {
+        console.error('❌ Error calling function:', error);
+        
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        setResult({
+            success: false,
+            message: `Error: ${errorMessage}`
+        });
+
+        // ✅ LOG ERROR
+        await logError(
+            'Analytics',
+            `Failed to ${actionDescription}: ${errorMessage}`,
+            {
+                functionName,
+                parameters: params,
+                error: error instanceof Error ? error.stack : errorMessage,
+            }
+        );
+    } finally {
+        setLoading(false);
+    }
+};
+
 
     const generateDailyAnalytics = () => {
-        const params: Record<string, string> = {};
+    const params: Record<string, string> = {};
 
-        if (useCustomRange && startDate && endDate) {
-            params.startDate = startDate;
-            params.endDate = endDate;
-        } else {
-            params.days = daysToGenerate.toString();
-        }
+    if (useCustomRange && startDate && endDate) {
+        params.startDate = startDate;
+        params.endDate = endDate;
+    } else {
+        params.days = daysToGenerate.toString();
+    }
 
-        callFunction('generateDailyAnalyticsManual', params, setLoadingDaily); // ✅ Pass specific setter
-    };
+    // ✅ UPDATED: Added action description
+    const description = useCustomRange 
+        ? `generate daily analytics from ${startDate} to ${endDate}`
+        : `generate ${daysToGenerate} days of daily analytics`;
 
-    const generateContentPerformance = () => {
-        callFunction('generateContentPerformanceManual', {}, setLoadingContent); // ✅ Pass specific setter
-    };
+    callFunction('generateDailyAnalyticsManual', params, setLoadingDaily, description);
+};
 
-    const generateMonthlyAnalytics = () => {
-        callFunction('generateMonthlyAnalyticsManual', { months: monthsToGenerate.toString() }, setLoadingMonthly); // ✅ Pass specific setter
-    };
+const generateContentPerformance = () => {
+    // ✅ UPDATED: Added action description
+    callFunction(
+        'generateContentPerformanceManual', 
+        {}, 
+        setLoadingContent,
+        'update content performance analytics'
+    );
+};
+
+const generateMonthlyAnalytics = () => {
+    // ✅ UPDATED: Added action description
+    callFunction(
+        'generateMonthlyAnalyticsManual', 
+        { months: monthsToGenerate.toString() }, 
+        setLoadingMonthly,
+        `generate ${monthsToGenerate} months of monthly analytics`
+    );
+};
 
     // ✅ CHECK IF ANY LOADING
     const isAnyLoading = loadingDaily || loadingContent || loadingMonthly;

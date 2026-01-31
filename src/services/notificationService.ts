@@ -18,6 +18,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Notification, NotificationTemplate } from '../types/notification';
+import {
+    logNotificationSend,
+    logNotificationRead,
+    logNotificationDelete,
+    logTemplateCreate,
+    logTemplateUpdate,
+    logTemplateDelete,
+    logError
+} from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 📤 SEND NOTIFICATION
@@ -85,9 +94,36 @@ export const sendNotification = async (notification: Omit<Notification, 'id'>): 
             sentCount: targetUserIds.length,
         });
 
+        // ✅ LOG NOTIFICATION SEND
+        await logNotificationSend(
+            docRef.id,
+            notification.title,
+            notification.target,
+            targetUserIds.length,
+            notification.type,
+            notification.priority,
+            {
+                contentId: notification.contentId,
+                contentType: notification.contentType,
+            }
+        );
+
         return docRef.id;
     } catch (error) {
         console.error('Error sending notification:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to send notification',
+            {
+                title: notification.title,
+                target: notification.target,
+                type: notification.type,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -106,6 +142,18 @@ export const getUserNotifications = async (userId: string, limitCount: number = 
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
         console.error('Error getting user notifications:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to fetch user notifications',
+            {
+                userId,
+                limitCount,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -113,14 +161,33 @@ export const getUserNotifications = async (userId: string, limitCount: number = 
 // ═══════════════════════════════════════════════════════════════
 // ✅ MARK AS READ
 // ═══════════════════════════════════════════════════════════════
-export const markNotificationAsRead = async (userId: string, notificationId: string) => {
+export const markNotificationAsRead = async (
+    userId: string,
+    notificationId: string,
+    notificationTitle?: string
+) => {
     try {
         await updateDoc(doc(db, 'users', userId, 'notifications', notificationId), {
             isRead: true,
             readAt: Timestamp.now(),
         });
+
+        // ✅ LOG NOTIFICATION READ
+        await logNotificationRead(notificationId, userId, notificationTitle);
     } catch (error) {
         console.error('Error marking notification as read:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to mark notification as read',
+            {
+                userId,
+                notificationId,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -128,11 +195,30 @@ export const markNotificationAsRead = async (userId: string, notificationId: str
 // ═══════════════════════════════════════════════════════════════
 // 🗑️ DELETE NOTIFICATION
 // ═══════════════════════════════════════════════════════════════
-export const deleteNotification = async (userId: string, notificationId: string) => {
+export const deleteNotification = async (
+    userId: string,
+    notificationId: string,
+    notificationTitle?: string
+) => {
     try {
         await deleteDoc(doc(db, 'users', userId, 'notifications', notificationId));
+
+        // ✅ LOG NOTIFICATION DELETE
+        await logNotificationDelete(notificationId, notificationTitle);
     } catch (error) {
         console.error('Error deleting notification:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to delete notification',
+            {
+                userId,
+                notificationId,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -168,6 +254,16 @@ export const getNotificationStats = async () => {
         };
     } catch (error) {
         console.error('Error getting notification stats:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to fetch notification stats',
+            {
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -183,9 +279,24 @@ export const createTemplate = async (template: Omit<NotificationTemplate, 'id'>)
             updatedAt: Timestamp.now(),
             usageCount: 0,
         });
+
+        // ✅ LOG TEMPLATE CREATE
+        await logTemplateCreate(docRef.id, template.name);
+
         return docRef.id;
     } catch (error) {
         console.error('Error creating template:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to create template',
+            {
+                templateName: template.name,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -196,6 +307,16 @@ export const getTemplates = async () => {
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NotificationTemplate));
     } catch (error) {
         console.error('Error getting templates:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to fetch templates',
+            {
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -206,8 +327,22 @@ export const updateTemplate = async (id: string, data: Partial<NotificationTempl
             ...data,
             updatedAt: Timestamp.now(),
         });
+
+        // ✅ LOG TEMPLATE UPDATE
+        await logTemplateUpdate(id, data.name || 'Unknown Template');
     } catch (error) {
         console.error('Error updating template:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to update template',
+            {
+                templateId: id,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };
@@ -215,8 +350,22 @@ export const updateTemplate = async (id: string, data: Partial<NotificationTempl
 export const deleteTemplate = async (id: string) => {
     try {
         await deleteDoc(doc(db, 'notificationTemplates', id));
+
+        // ✅ LOG TEMPLATE DELETE
+        await logTemplateDelete(id);
     } catch (error) {
         console.error('Error deleting template:', error);
+
+        // ❌ LOG ERROR
+        await logError(
+            'Notifications',
+            error instanceof Error ? error.message : 'Failed to delete template',
+            {
+                templateId: id,
+                error: error instanceof Error ? error.stack : 'Unknown error',
+            }
+        );
+
         throw error;
     }
 };

@@ -41,9 +41,19 @@ import type {
   FestivalScreening,
 } from "../../types";
 
-import { MediaSelector, type MediaInputMode } from "../../components/admin/MediaSelector";
+import {
+  MediaSelector,
+  type MediaInputMode,
+} from "../../components/admin/MediaSelector";
 import { VideoUploader } from "../../components/admin/VideoUploader";
 import { ImageUploader } from "../../components/admin/ImageUploader";
+import {
+  logContentCreate,
+  logContentUpdate,
+  logCastAdd,
+  logCrewAdd,
+  logError,
+} from "../../utils/activityLogger";
 
 interface ToastProps {
   message: string;
@@ -129,7 +139,7 @@ const CastModal: React.FC<CastModalProps> = ({
     order: 0,
   });
 
-  const [castImageMode, setCastImageMode] = useState<MediaInputMode>('url');
+  const [castImageMode, setCastImageMode] = useState<MediaInputMode>("url");
 
   useEffect(() => {
     if (initialData) {
@@ -307,11 +317,13 @@ const CastModal: React.FC<CastModalProps> = ({
                 label=""
               />
 
-              {castImageMode === 'upload' ? (
+              {castImageMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url, cdnUrl) => {
-                      setCastData({ ...castData, profileImage: cdnUrl || url });
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { cdnUrl } = urls[0];
+                      setCastData({ ...castData, profileImage: cdnUrl });
                     }}
                     currentUrl={castData.profileImage}
                     folder="shortfilms/cast"
@@ -493,7 +505,7 @@ const CrewModal: React.FC<CrewModalProps> = ({
     order: 0,
   });
 
-  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>('url');
+  const [crewImageMode, setCrewImageMode] = useState<MediaInputMode>("url");
 
   useEffect(() => {
     if (initialData) {
@@ -640,11 +652,13 @@ const CrewModal: React.FC<CrewModalProps> = ({
                 label=""
               />
 
-              {crewImageMode === 'upload' ? (
+              {crewImageMode === "upload" ? (
                 <div className="mt-4">
                   <ImageUploader
-                    onUploadComplete={(url, cdnUrl) => {
-                      setCrewData({ ...crewData, profileImage: cdnUrl || url });
+                    onUploadComplete={(urls) => {
+                      if (urls.length === 0) return;
+                      const { cdnUrl } = urls[0];
+                      setCrewData({ ...crewData, profileImage: cdnUrl });
                     }}
                     currentUrl={crewData.profileImage}
                     folder="shortfilms/crew"
@@ -1044,10 +1058,12 @@ const AddEditShortFilm: React.FC = () => {
   const [genreInput, setGenreInput] = useState("");
   const [tagInput, setTagInput] = useState("");
 
-  const [videoInputMode, setVideoInputMode] = useState<MediaInputMode>('url');
-  const [thumbnailInputMode, setThumbnailInputMode] = useState<MediaInputMode>('url');
-  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>('url');
-  const [backdropInputMode, setBackdropInputMode] = useState<MediaInputMode>('url');
+  const [videoInputMode, setVideoInputMode] = useState<MediaInputMode>("url");
+  const [thumbnailInputMode, setThumbnailInputMode] =
+    useState<MediaInputMode>("url");
+  const [posterInputMode, setPosterInputMode] = useState<MediaInputMode>("url");
+  const [backdropInputMode, setBackdropInputMode] =
+    useState<MediaInputMode>("url");
 
   // Fetch film data for edit mode
   useEffect(() => {
@@ -1080,6 +1096,14 @@ const AddEditShortFilm: React.FC = () => {
       setFetchingFilm(false);
     } catch (error) {
       console.error("Error fetching short film:", error);
+      await logError(
+        "Short Films",
+        `Failed to fetch film data: ${error instanceof Error ? error.message : "Unknown error"}`,
+        {
+          filmId: filmId,
+          error: error instanceof Error ? error.stack : "Unknown error",
+        },
+      );
       showToast("Failed to load short film data", "error");
       setFetchingFilm(false);
       navigate("/admin/content/short-films");
@@ -1257,12 +1281,43 @@ const AddEditShortFilm: React.FC = () => {
       }
 
       await setDoc(newFilmRef, filmData);
+      await logContentCreate(
+        "short-film",
+        newFilmId,
+        formData.title!,
+        "Short Films",
+        {
+          genre: formData.genre,
+          director: formData.director,
+          language: formData.language,
+          releaseDate: formData.releaseDate,
+          duration: formData.duration,
+          isPremium: formData.isPremium,
+          isFeatured: formData.isFeatured,
+          castCount: formData.cast?.length || 0,
+          crewCount: formData.crew?.length || 0,
+          festivalCount: formData.festivalScreenings?.length || 0,
+        },
+      );
       showToast("Short film created successfully!", "success");
       setLoading(false);
 
       setTimeout(() => navigate("/admin/content/short-films"), 1500);
     } catch (error: any) {
       console.error("Error creating short film:", error);
+      await logError(
+        "Short Films",
+        `Failed to create short film: ${error.message}`,
+        {
+          filmTitle: formData.title,
+          error: error.stack,
+          formData: {
+            genre: formData.genre,
+            director: formData.director,
+            releaseDate: formData.releaseDate,
+          },
+        },
+      );
       throw error;
     }
   };
@@ -1330,12 +1385,40 @@ const AddEditShortFilm: React.FC = () => {
       }
 
       await updateDoc(doc(db, "shortfilms", filmId!), updateData);
+      await logContentUpdate(
+        "short-film",
+        filmId!,
+        formData.title!,
+        "Short Films",
+        {
+          fieldsUpdated: Object.keys(updateData),
+        },
+        {
+          genre: formData.genre,
+          director: formData.director,
+          language: formData.language,
+          isPremium: formData.isPremium,
+          isFeatured: formData.isFeatured,
+          castCount: formData.cast?.length || 0,
+          crewCount: formData.crew?.length || 0,
+          festivalCount: formData.festivalScreenings?.length || 0,
+        },
+      );
       showToast("Short film updated successfully!", "success");
       setLoading(false);
 
       setTimeout(() => navigate("/admin/content/short-films"), 1500);
     } catch (error: any) {
       console.error("Error updating short film:", error);
+      await logError(
+        "Short Films",
+        `Failed to update short film: ${error.message}`,
+        {
+          filmId: filmId,
+          filmTitle: formData.title,
+          error: error.stack,
+        },
+      );
       throw error;
     }
   };
@@ -1428,11 +1511,18 @@ const AddEditShortFilm: React.FC = () => {
   };
 
   // Cast & Crew handlers (same as Movie/WebSeries)
-  const handleAddCast = (cast: CastMember) => {
+  const handleAddCast = async (cast: CastMember) => {
     setFormData((prev) => ({
       ...prev,
       cast: [...(prev.cast || []), cast],
     }));
+
+    // ✅ LOG CAST ADD
+    await logCastAdd(cast.name, cast.role, "Short Films", {
+      characterName: cast.characterName,
+      filmTitle: formData.title || "Untitled Film",
+      filmId: filmId || "new",
+    });
   };
 
   const handleEditCast = (cast: CastMember) => {
@@ -1443,11 +1533,18 @@ const AddEditShortFilm: React.FC = () => {
     }));
   };
 
-  const handleAddCrew = (crew: CrewMember) => {
+  const handleAddCrew = async (crew: CrewMember) => {
     setFormData((prev) => ({
       ...prev,
       crew: [...(prev.crew || []), crew],
     }));
+
+    // ✅ LOG CREW ADD
+    await logCrewAdd(crew.name, crew.role, "Short Films", {
+      department: crew.department,
+      filmTitle: formData.title || "Untitled Film",
+      filmId: filmId || "new",
+    });
   };
 
   const handleEditCrew = (crew: CrewMember) => {
@@ -1588,10 +1685,11 @@ const AddEditShortFilm: React.FC = () => {
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="Enter short film title"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.title
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.title
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.title && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1625,10 +1723,11 @@ const AddEditShortFilm: React.FC = () => {
                     onChange={handleInputChange}
                     placeholder="Enter short film description"
                     rows={4}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.description
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.description
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1662,10 +1761,11 @@ const AddEditShortFilm: React.FC = () => {
                     value={formData.duration}
                     onChange={handleInputChange}
                     placeholder="e.g., 15 min"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.duration
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.duration
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.duration && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1684,10 +1784,11 @@ const AddEditShortFilm: React.FC = () => {
                     name="releaseDate"
                     value={formData.releaseDate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.releaseDate
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.releaseDate
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.releaseDate && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1754,10 +1855,11 @@ const AddEditShortFilm: React.FC = () => {
                     value={formData.videoUrl}
                     onChange={handleInputChange}
                     placeholder="https://example.com/video.m3u8"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.videoUrl
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.videoUrl
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.videoUrl && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1803,14 +1905,14 @@ const AddEditShortFilm: React.FC = () => {
                     label="Video Input Method"
                   />
 
-                  {videoInputMode === 'upload' ? (
+                  {videoInputMode === "upload" ? (
                     <div className="mt-4">
                       <VideoUploader
                         onUploadComplete={(url, cdnUrl) => {
                           setFormData({
                             ...formData,
                             videoUrl: url,
-                            videoCdnUrl: cdnUrl || url  // ADD THIS
+                            videoCdnUrl: cdnUrl || url, // ADD THIS
                           });
                           if (errors.videoUrl) {
                             setErrors((prev) => {
@@ -1820,8 +1922,10 @@ const AddEditShortFilm: React.FC = () => {
                             });
                           }
                         }}
-                        currentUrl={formData.videoCdnUrl || formData.videoUrl}  // CDN first
+                        currentUrl={formData.videoCdnUrl || formData.videoUrl} // CDN first
+                        folder="shortfilms/videos" // ✅ ADDED
                         maxSize={1000}
+                        acceptedFormats={["mp4", "mkv", "webm"]}
                       />
                     </div>
                   ) : (
@@ -1832,10 +1936,11 @@ const AddEditShortFilm: React.FC = () => {
                         value={formData.videoUrl}
                         onChange={handleInputChange}
                         placeholder="https://example.com/video.m3u8"
-                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.videoUrl
-                          ? "border-red-500"
-                          : "border-slate-200 dark:border-slate-700"
-                          } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                          errors.videoUrl
+                            ? "border-red-500"
+                            : "border-slate-200 dark:border-slate-700"
+                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                       />
                       {errors.videoUrl && (
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -1859,17 +1964,21 @@ const AddEditShortFilm: React.FC = () => {
                     label="Thumbnail Input Method"
                   />
 
-                  {thumbnailInputMode === 'upload' ? (
+                  {thumbnailInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
                             thumbnail: url,
-                            thumbnailCdnUrl: cdnUrl || url  // ADD THIS
+                            thumbnailCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.thumbnailCdnUrl || formData.thumbnail}  // CDN first
+                        currentUrl={
+                          formData.thumbnailCdnUrl || formData.thumbnail
+                        } // CDN first
                         folder="shortfilms/thumbnails"
                         aspectRatio="16:9"
                       />
@@ -1900,17 +2009,19 @@ const AddEditShortFilm: React.FC = () => {
                     label="Poster Input Method"
                   />
 
-                  {posterInputMode === 'upload' ? (
+                  {posterInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
                             posterUrl: url,
-                            posterCdnUrl: cdnUrl || url  // ADD THIS
+                            posterCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.posterCdnUrl || formData.posterUrl}  // CDN first
+                        currentUrl={formData.posterCdnUrl || formData.posterUrl} // CDN first
                         folder="shortfilms/posters"
                         aspectRatio="2:3"
                       />
@@ -1941,17 +2052,21 @@ const AddEditShortFilm: React.FC = () => {
                     label="Backdrop Input Method"
                   />
 
-                  {backdropInputMode === 'upload' ? (
+                  {backdropInputMode === "upload" ? (
                     <div className="mt-4">
                       <ImageUploader
-                        onUploadComplete={(url, cdnUrl) => {
+                        onUploadComplete={(urls) => {
+                          if (urls.length === 0) return;
+                          const { url, cdnUrl } = urls[0];
                           setFormData({
                             ...formData,
                             backdropUrl: url,
-                            backdropCdnUrl: cdnUrl || url  // ADD THIS
+                            backdropCdnUrl: cdnUrl,
                           });
                         }}
-                        currentUrl={formData.backdropCdnUrl || formData.backdropUrl}  // CDN first
+                        currentUrl={
+                          formData.backdropCdnUrl || formData.backdropUrl
+                        } // CDN first
                         folder="shortfilms/backdrops"
                         aspectRatio="16:9"
                       />
@@ -1993,10 +2108,11 @@ const AddEditShortFilm: React.FC = () => {
                       }
                     }}
                     placeholder="Enter genre and press Enter"
-                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.genre
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.genre
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   <motion.button
                     type="button"
@@ -2063,10 +2179,11 @@ const AddEditShortFilm: React.FC = () => {
                     value={formData.director}
                     onChange={handleInputChange}
                     placeholder="Director name"
-                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.director
-                      ? "border-red-500"
-                      : "border-slate-200 dark:border-slate-700"
-                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
+                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${
+                      errors.director
+                        ? "border-red-500"
+                        : "border-slate-200 dark:border-slate-700"
+                    } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white`}
                   />
                   {errors.director && (
                     <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -2458,7 +2575,7 @@ const AddEditShortFilm: React.FC = () => {
               </div>
 
               {!formData.festivalScreenings ||
-                formData.festivalScreenings.length === 0 ? (
+              formData.festivalScreenings.length === 0 ? (
                 <div className="text-center py-12 bg-slate-50 dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700">
                   <Award
                     size={48}

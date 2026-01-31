@@ -36,6 +36,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import type { Movie, WebSeries, ShortFilm } from "../../types";
+import {
+  logContentApproval,
+  logContentRejection,
+  logError,
+} from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -526,8 +531,15 @@ const ContentApproval: React.FC = () => {
       console.log(`Fetched ${allContent.length} content items`);
       setContentItems(allContent);
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching content:", error);
+      await logError(
+        "Content Approval",
+        `Failed to fetch approval queue: ${error.message}`,
+        {
+          error: error.stack || error.message,
+        },
+      );
       showToast("Failed to load content", "error");
       setLoading(false);
     }
@@ -584,12 +596,46 @@ const ContentApproval: React.FC = () => {
         updatedAt: serverTimestamp(),
       });
 
+      // ✅ LOG APPROVAL
+      await logContentApproval(
+        item.type,
+        id,
+        item.title,
+        collectionName === "movies"
+          ? "Movies"
+          : collectionName === "webseries"
+            ? "Web Series"
+            : "Short Films",
+        {
+          approvedBy: "Admin",
+          notes: notes,
+          contentType: item.type,
+          genre: item.genre,
+          language: item.language,
+          isPremium: item.isPremium,
+        },
+      );
+
       showToast("Content approved successfully!", "success");
       setReviewModal({ isOpen: false, content: null });
-      fetchContent(); // Refresh list
+      fetchContent();
       setActionLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error approving content:", error);
+
+      // ✅ LOG ERROR
+      const item = contentItems.find((c) => c.id === id);
+      await logError(
+        "Content Approval",
+        `Failed to approve content: ${error.message}`,
+        {
+          contentId: id,
+          contentTitle: item?.title,
+          contentType: item?.type,
+          error: error.stack || error.message,
+        },
+      );
+
       showToast("Failed to approve content", "error");
       setActionLoading(false);
     }
@@ -619,12 +665,47 @@ const ContentApproval: React.FC = () => {
         updatedAt: serverTimestamp(),
       });
 
+      // ✅ LOG REJECTION
+      await logContentRejection(
+        item.type,
+        id,
+        item.title,
+        collectionName === "movies"
+          ? "Movies"
+          : collectionName === "webseries"
+            ? "Web Series"
+            : "Short Films",
+        reason,
+        {
+          rejectedBy: "Admin",
+          contentType: item.type,
+          genre: item.genre,
+          language: item.language,
+          isPremium: item.isPremium,
+        },
+      );
+
       showToast("Content rejected", "info");
       setReviewModal({ isOpen: false, content: null });
-      fetchContent(); // Refresh list
+      fetchContent();
       setActionLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error rejecting content:", error);
+
+      // ✅ LOG ERROR
+      const item = contentItems.find((c) => c.id === id);
+      await logError(
+        "Content Approval",
+        `Failed to reject content: ${error.message}`,
+        {
+          contentId: id,
+          contentTitle: item?.title,
+          contentType: item?.type,
+          rejectionReason: reason,
+          error: error.stack || error.message,
+        },
+      );
+
       showToast("Failed to reject content", "error");
       setActionLoading(false);
     }
@@ -1007,11 +1088,11 @@ const ContentApproval: React.FC = () => {
                             <span className="text-slate-700 dark:text-slate-300">
                               {item.submittedDate instanceof Timestamp
                                 ? item.submittedDate
-                                  .toDate()
-                                  .toLocaleDateString()
+                                    .toDate()
+                                    .toLocaleDateString()
                                 : new Date(
-                                  item.submittedDate,
-                                ).toLocaleDateString()}
+                                    item.submittedDate,
+                                  ).toLocaleDateString()}
                             </span>
                           </div>
                         </td>

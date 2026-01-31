@@ -9,7 +9,7 @@ import { collection, getCountFromServer, doc, getDoc } from 'firebase/firestore'
 import { message } from 'antd';
 import { auth, db } from '../../config/firebase';
 import { canAccessAdminPanel, type UserRole } from '../../types';
-
+import { logLogin, logError } from '../../utils/activityLogger';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -73,12 +73,32 @@ const LoginPage: React.FC = () => {
                     console.log('✅ Admin access granted!');
                     console.log('═══════════════════════════════════════════');
 
+                    // ✅ LOG SUCCESSFUL LOGIN
+                    await logLogin(userEmail, userRole, {
+                        uid,
+                        name: adminData.name || adminData.displayName,
+                        loginMethod: 'email/password',
+                        ipAddress: 'N/A', // You can add IP detection if needed
+                    });
+
                     message.success(`Welcome ${adminData.name || adminData.displayName || userEmail}! 🎉`);
                     navigate('/admin/dashboard');
                     return true;
                 } else {
                     console.log('❌ Role does not have admin access:', userRole);
                     console.log('═══════════════════════════════════════════');
+
+                    // ❌ LOG ACCESS DENIED
+                    await logError(
+                        'Authentication',
+                        'Access denied - Insufficient permissions',
+                        {
+                            email: userEmail,
+                            uid,
+                            role: userRole,
+                            reason: 'Role does not have admin panel access',
+                        }
+                    );
 
                     setError('Access Denied: Your role does not have admin panel access.');
                     await auth.signOut();
@@ -88,6 +108,17 @@ const LoginPage: React.FC = () => {
                 console.log('❌ Not found in admins collection');
                 console.log('═══════════════════════════════════════════');
 
+                // ❌ LOG UNAUTHORIZED ACCESS ATTEMPT
+                await logError(
+                    'Authentication',
+                    'Unauthorized access attempt - Not in admins collection',
+                    {
+                        email: userEmail,
+                        uid,
+                        reason: 'User not found in admins collection',
+                    }
+                );
+
                 setError('Access Denied: You are not an authorized Admin.');
                 await auth.signOut();
                 return false;
@@ -95,6 +126,18 @@ const LoginPage: React.FC = () => {
         } catch (error: any) {
             console.error('❌ Error checking admin access:', error);
             console.log('═══════════════════════════════════════════');
+
+            // ❌ LOG ERROR
+            await logError(
+                'Authentication',
+                'Error verifying admin access',
+                {
+                    email: userEmail,
+                    uid,
+                    error: error.message,
+                    stack: error.stack,
+                }
+            );
 
             setError('Error verifying admin access. Please try again.');
             await auth.signOut();
@@ -130,24 +173,40 @@ const LoginPage: React.FC = () => {
             console.log('Error code:', error.code);
             console.log('═══════════════════════════════════════════');
 
+            let errorMessage = '';
+
             // User-friendly error messages
             if (error.code === 'auth/user-not-found') {
-                setError('No account found with this email address.');
+                errorMessage = 'No account found with this email address.';
             } else if (error.code === 'auth/wrong-password') {
-                setError('Incorrect password. Please try again.');
+                errorMessage = 'Incorrect password. Please try again.';
             } else if (error.code === 'auth/invalid-email') {
-                setError('Invalid email address format.');
+                errorMessage = 'Invalid email address format.';
             } else if (error.code === 'auth/user-disabled') {
-                setError('This account has been disabled. Contact support.');
+                errorMessage = 'This account has been disabled. Contact support.';
             } else if (error.code === 'auth/too-many-requests') {
-                setError('Too many failed attempts. Please try again later.');
+                errorMessage = 'Too many failed attempts. Please try again later.';
             } else if (error.code === 'auth/network-request-failed') {
-                setError('Network error. Please check your internet connection.');
+                errorMessage = 'Network error. Please check your internet connection.';
             } else if (error.code === 'auth/invalid-credential') {
-                setError('Invalid credentials. Please check your email and password.');
+                errorMessage = 'Invalid credentials. Please check your email and password.';
             } else {
-                setError('Login failed. Please check your credentials and try again.');
+                errorMessage = 'Login failed. Please check your credentials and try again.';
             }
+
+            setError(errorMessage);
+
+            // ❌ LOG FAILED LOGIN ATTEMPT
+            await logError(
+                'Authentication',
+                `Login failed: ${errorMessage}`,
+                {
+                    email,
+                    errorCode: error.code,
+                    errorMessage: error.message,
+                    attemptedAt: new Date().toISOString(),
+                }
+            );
         } finally {
             setLoading(false);
         }

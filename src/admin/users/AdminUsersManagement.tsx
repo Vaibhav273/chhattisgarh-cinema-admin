@@ -38,7 +38,8 @@ import {
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
+import { logAdminManagementAction } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════
 // 🎨 CUSTOM ALERT MODAL
@@ -454,6 +455,19 @@ const AdminUsersManagement: React.FC = () => {
     try {
       if (alertModal.action === "delete") {
         await deleteDoc(doc(db, "admins", alertModal.adminId));
+
+        // ✅ LOG: Admin deleted
+        await logAdminManagementAction(
+          "admin_deleted",
+          "success",
+          `Deleted admin: ${alertModal.adminName}`,
+          auth.currentUser,
+          {
+            deletedAdminId: alertModal.adminId,
+            deletedAdminName: alertModal.adminName,
+          },
+        );
+
         setAllAdmins((prev) =>
           prev.filter((a) => a.uid !== alertModal.adminId),
         );
@@ -464,6 +478,19 @@ const AdminUsersManagement: React.FC = () => {
           isActive: false,
           updatedAt: Timestamp.now(),
         });
+
+        // ✅ LOG: Admin suspended
+        await logAdminManagementAction(
+          "admin_suspended",
+          "success",
+          `Suspended admin: ${alertModal.adminName}`,
+          auth.currentUser,
+          {
+            suspendedAdminId: alertModal.adminId,
+            suspendedAdminName: alertModal.adminName,
+          },
+        );
+
         setAllAdmins((prev) =>
           prev.map((a) =>
             a.uid === alertModal.adminId
@@ -478,6 +505,19 @@ const AdminUsersManagement: React.FC = () => {
           isActive: true,
           updatedAt: Timestamp.now(),
         });
+
+        // ✅ LOG: Admin activated
+        await logAdminManagementAction(
+          "admin_activated",
+          "success",
+          `Activated admin: ${alertModal.adminName}`,
+          auth.currentUser,
+          {
+            activatedAdminId: alertModal.adminId,
+            activatedAdminName: alertModal.adminName,
+          },
+        );
+
         setAllAdmins((prev) =>
           prev.map((a) =>
             a.uid === alertModal.adminId
@@ -491,6 +531,20 @@ const AdminUsersManagement: React.FC = () => {
       setAlertModal({ isOpen: false, adminId: "", adminName: "", action: "" });
     } catch (error) {
       console.error("Error performing action:", error);
+
+      // ✅ LOG ERROR
+      await logAdminManagementAction(
+        `admin_${alertModal.action}_failed`,
+        "failed",
+        `Failed to ${alertModal.action} admin: ${alertModal.adminName}`,
+        auth.currentUser,
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          adminId: alertModal.adminId,
+          adminName: alertModal.adminName,
+        },
+      );
+
       showToast("Failed to perform action", "error");
     } finally {
       setActionLoading(false);

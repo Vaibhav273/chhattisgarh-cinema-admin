@@ -77,3 +77,32 @@ body {
   background: #30363d;
   border-radius: 10px;
 }
+
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+textarea,
+select {
+  @apply text-slate-800 dark:text-white;
+}
+
+/* Placeholder Colors */
+input::placeholder,
+textarea::placeholder {
+  @apply text-slate-400 dark:text-slate-500;
+}
+
+/* Date/Time Input Fix for Dark Mode */
+input[type="date"],
+input[type="time"] {
+  color-scheme: light dark;
+}
+
+/* Select Arrow Fix for Dark Mode */
+select {
+  @apply bg-slate-50 dark:bg-slate-800;
+}

@@ -8,10 +8,18 @@
     "outDir": "lib",
     "sourceMap": true,
     "strict": true,
-    "target": "es2017"
+    "target": "es2017",
+    "skipLibCheck": true,           // ✅ Skip type checking for node_modules
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
   },
   "compileOnSave": true,
   "include": [
     "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib"
   ]
 }

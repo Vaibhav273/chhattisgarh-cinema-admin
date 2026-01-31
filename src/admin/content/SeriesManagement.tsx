@@ -1,10 +1,6 @@
-// ═══════════════════════════════════════════════════════════════
-// 📺 SERIES MANAGEMENT - PRODUCTION READY
-// ═══════════════════════════════════════════════════════════════
-
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   TrendingUp,
   Plus,
@@ -21,10 +17,10 @@ import {
   XCircle,
   Layers,
   Film,
-} from 'lucide-react';
-import { usePermissions } from '../../hooks/usePermissions';
-import { Permission } from '../../types/roles';
-import { type WebSeries } from '../../types/content';
+} from "lucide-react";
+import { usePermissions } from "../../hooks/usePermissions";
+import { Permission } from "../../types/roles";
+import { type WebSeries } from "../../types/content";
 import {
   collection,
   query,
@@ -40,8 +36,13 @@ import {
   QueryDocumentSnapshot,
   Timestamp,
   getDoc,
-} from 'firebase/firestore';
-import { db } from '../../config/firebase';
+} from "firebase/firestore";
+import { db } from "../../config/firebase";
+import {
+  logContentDelete,
+  logContentUpdate,
+  logError,
+} from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════
 // 🎨 CUSTOM ALERT MODAL
@@ -53,7 +54,7 @@ interface AlertModalProps {
   title: string;
   message: string;
   confirmText?: string;
-  type?: 'danger' | 'warning' | 'success';
+  type?: "danger" | "warning" | "success";
   loading?: boolean;
 }
 
@@ -63,24 +64,24 @@ const AlertModal: React.FC<AlertModalProps> = ({
   onConfirm,
   title,
   message,
-  confirmText = 'Confirm',
-  type = 'danger',
+  confirmText = "Confirm",
+  type = "danger",
   loading = false,
 }) => {
   if (!isOpen) return null;
 
   const colors = {
     danger: {
-      bg: 'from-red-500 to-pink-600',
-      button: 'bg-red-500 hover:bg-red-600',
+      bg: "from-red-500 to-pink-600",
+      button: "bg-red-500 hover:bg-red-600",
     },
     warning: {
-      bg: 'from-orange-500 to-amber-600',
-      button: 'bg-orange-500 hover:bg-orange-600',
+      bg: "from-orange-500 to-amber-600",
+      button: "bg-orange-500 hover:bg-orange-600",
     },
     success: {
-      bg: 'from-green-500 to-emerald-600',
-      button: 'bg-green-500 hover:bg-green-600',
+      bg: "from-green-500 to-emerald-600",
+      button: "bg-green-500 hover:bg-green-600",
     },
   };
 
@@ -100,7 +101,9 @@ const AlertModal: React.FC<AlertModalProps> = ({
           onClick={(e) => e.stopPropagation()}
           className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-slate-800"
         >
-          <div className={`bg-gradient-to-r ${colors[type].bg} p-6 text-white relative overflow-hidden`}>
+          <div
+            className={`bg-gradient-to-r ${colors[type].bg} p-6 text-white relative overflow-hidden`}
+          >
             <motion.div
               animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
               transition={{ duration: 20, repeat: Infinity }}
@@ -143,7 +146,11 @@ const AlertModal: React.FC<AlertModalProps> = ({
                 <>
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
                     className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
                   />
                   Processing...
@@ -164,7 +171,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
 // ═══════════════════════════════════════════════════════════════
 interface ToastProps {
   message: string;
-  type: 'success' | 'error';
+  type: "success" | "error";
   isVisible: boolean;
   onClose: () => void;
 }
@@ -184,18 +191,19 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: -50, x: '-50%' }}
-        animate={{ opacity: 1, y: 0, x: '-50%' }}
-        exit={{ opacity: 0, y: -50, x: '-50%' }}
+        initial={{ opacity: 0, y: -50, x: "-50%" }}
+        animate={{ opacity: 1, y: 0, x: "-50%" }}
+        exit={{ opacity: 0, y: -50, x: "-50%" }}
         className="fixed top-6 left-1/2 z-50"
       >
         <div
-          className={`px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl flex items-center gap-3 ${type === 'success'
-            ? 'bg-green-500 text-white'
-            : 'bg-red-500 text-white'
-            }`}
+          className={`px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl flex items-center gap-3 ${
+            type === "success"
+              ? "bg-green-500 text-white"
+              : "bg-red-500 text-white"
+          }`}
         >
-          {type === 'success' ? (
+          {type === "success" ? (
             <CheckCircle size={24} />
           ) : (
             <XCircle size={24} />
@@ -216,25 +224,26 @@ const SeriesManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [series, setSeries] = useState<WebSeries[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterGenre, setFilterGenre] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterGenre, setFilterGenre] = useState<string>("all");
   const [genres, setGenres] = useState<string[]>([]);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [lastDoc, setLastDoc] =
+    useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
   // Alert Modal State
   const [alertModal, setAlertModal] = useState({
     isOpen: false,
-    seriesId: '',
-    seriesTitle: '',
+    seriesId: "",
+    seriesTitle: "",
   });
 
   // Toast State
   const [toast, setToast] = useState({
     isVisible: false,
-    message: '',
-    type: 'success' as 'success' | 'error',
+    message: "",
+    type: "success" as "success" | "error",
   });
 
   // Stats
@@ -257,13 +266,13 @@ const SeriesManagement: React.FC = () => {
 
   const fetchGenres = async () => {
     try {
-      const genresDoc = await getDoc(doc(db, 'settings', 'genres'));
+      const genresDoc = await getDoc(doc(db, "settings", "genres"));
 
       if (genresDoc.exists()) {
         const genresData = genresDoc.data();
         setGenres(genresData.list || []);
       } else {
-        const seriesSnapshot = await getDocs(collection(db, 'webseries'));
+        const seriesSnapshot = await getDocs(collection(db, "webseries"));
         const allGenres = new Set<string>();
 
         seriesSnapshot.forEach((doc) => {
@@ -276,20 +285,20 @@ const SeriesManagement: React.FC = () => {
         setGenres(Array.from(allGenres).sort());
       }
     } catch (error) {
-      console.error('Error fetching genres:', error);
+      console.error("Error fetching genres:", error);
       setGenres([
-        'Action',
-        'Adventure',
-        'Comedy',
-        'Drama',
-        'Horror',
-        'Romance',
-        'Sci-Fi',
-        'Thriller',
-        'Fantasy',
-        'Mystery',
-        'Crime',
-        'Documentary',
+        "Action",
+        "Adventure",
+        "Comedy",
+        "Drama",
+        "Horror",
+        "Romance",
+        "Sci-Fi",
+        "Thriller",
+        "Fantasy",
+        "Mystery",
+        "Crime",
+        "Documentary",
       ]);
     }
   };
@@ -307,54 +316,54 @@ const SeriesManagement: React.FC = () => {
       setLoading(true);
 
       let seriesQuery = query(
-        collection(db, 'webseries'),
-        orderBy('createdAt', 'desc'),
-        limit(20)
+        collection(db, "webseries"),
+        orderBy("createdAt", "desc"),
+        limit(20),
       );
 
-      if (filterStatus === 'published') {
+      if (filterStatus === "published") {
         seriesQuery = query(
-          collection(db, 'webseries'),
-          where('isPublished', '==', true),
-          orderBy('createdAt', 'desc'),
-          limit(20)
+          collection(db, "webseries"),
+          where("isPublished", "==", true),
+          orderBy("createdAt", "desc"),
+          limit(20),
         );
-      } else if (filterStatus === 'featured') {
+      } else if (filterStatus === "featured") {
         seriesQuery = query(
-          collection(db, 'webseries'),
-          where('isFeatured', '==', true),
-          orderBy('createdAt', 'desc'),
-          limit(20)
+          collection(db, "webseries"),
+          where("isFeatured", "==", true),
+          orderBy("createdAt", "desc"),
+          limit(20),
         );
-      } else if (filterStatus === 'premium') {
+      } else if (filterStatus === "premium") {
         seriesQuery = query(
-          collection(db, 'webseries'),
-          where('isPremium', '==', true),
-          orderBy('createdAt', 'desc'),
-          limit(20)
+          collection(db, "webseries"),
+          where("isPremium", "==", true),
+          orderBy("createdAt", "desc"),
+          limit(20),
         );
-      } else if (filterStatus === 'ongoing') {
+      } else if (filterStatus === "ongoing") {
         seriesQuery = query(
-          collection(db, 'webseries'),
-          where('status', '==', 'ongoing'),
-          orderBy('createdAt', 'desc'),
-          limit(20)
+          collection(db, "webseries"),
+          where("status", "==", "ongoing"),
+          orderBy("createdAt", "desc"),
+          limit(20),
         );
-      } else if (filterStatus === 'completed') {
+      } else if (filterStatus === "completed") {
         seriesQuery = query(
-          collection(db, 'webseries'),
-          where('status', '==', 'completed'),
-          orderBy('createdAt', 'desc'),
-          limit(20)
+          collection(db, "webseries"),
+          where("status", "==", "completed"),
+          orderBy("createdAt", "desc"),
+          limit(20),
         );
       }
 
-      if (filterGenre !== 'all') {
+      if (filterGenre !== "all") {
         seriesQuery = query(
-          collection(db, 'webseries'),
-          where('genre', 'array-contains', filterGenre),
-          orderBy('createdAt', 'desc'),
-          limit(20)
+          collection(db, "webseries"),
+          where("genre", "array-contains", filterGenre),
+          orderBy("createdAt", "desc"),
+          limit(20),
         );
       }
 
@@ -368,19 +377,19 @@ const SeriesManagement: React.FC = () => {
         const data = docSnap.data();
         return {
           id: docSnap.id,
-          category: 'series',
-          title: data.title || '',
+          category: "series",
+          title: data.title || "",
           titleHindi: data.titleHindi,
           description: data.description,
           descriptionHindi: data.descriptionHindi,
           thumbnail: data.thumbnail,
           thumbnailUrl: data.thumbnailUrl,
-          thumbnailCdnUrl: data.thumbnailCdnUrl,  // ADD THIS
+          thumbnailCdnUrl: data.thumbnailCdnUrl, // ADD THIS
           posterUrl: data.posterUrl,
-          posterCdnUrl: data.posterCdnUrl,        // ADD THIS
+          posterCdnUrl: data.posterCdnUrl, // ADD THIS
           backdropUrl: data.backdropUrl,
-          backdropCdnUrl: data.backdropCdnUrl,    // ADD THIS
-          trailerCdnUrl: data.trailerCdnUrl,      // ADD THIS
+          backdropCdnUrl: data.backdropCdnUrl, // ADD THIS
+          trailerCdnUrl: data.trailerCdnUrl, // ADD THIS
           teaserCdnUrl: data.teaserCdnUrl,
           banner: data.banner,
           rating: data.rating,
@@ -397,8 +406,12 @@ const SeriesManagement: React.FC = () => {
           views: data.views || 0,
           likes: data.likes || 0,
           dislikes: data.dislikes || 0,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
+          createdAt: data.createdAt?.toDate
+            ? data.createdAt.toDate()
+            : new Date(),
+          updatedAt: data.updatedAt?.toDate
+            ? data.updatedAt.toDate()
+            : new Date(),
           channelId: data.channelId,
           channelName: data.channelName,
           channelAvatar: data.channelAvatar,
@@ -416,7 +429,9 @@ const SeriesManagement: React.FC = () => {
           totalEpisodes: data.totalEpisodes,
           currentSeason: data.currentSeason,
           status: data.status,
-          releaseDate: data.releaseDate?.toDate ? data.releaseDate.toDate() : data.releaseDate,
+          releaseDate: data.releaseDate?.toDate
+            ? data.releaseDate.toDate()
+            : data.releaseDate,
           lastAirDate: data.lastAirDate,
           nextEpisodeDate: data.nextEpisodeDate,
           director: data.director,
@@ -460,16 +475,21 @@ const SeriesManagement: React.FC = () => {
       setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
       setHasMore(snapshot.docs.length === 20);
       setLoading(false);
-    } catch (error) {
-      console.error('Error fetching series:', error);
-      showToast('Failed to load series', 'error');
+    } catch (error: any) {
+      console.error("Error fetching series:", error);
+      await logError("Web Series", `Failed to fetch series: ${error.message}`, {
+        filterStatus,
+        filterGenre,
+        error: error.stack || error.message,
+      });
+      showToast("Failed to load series", "error");
       setLoading(false);
     }
   };
 
   const fetchStats = async () => {
     try {
-      const allSeriesSnapshot = await getDocs(collection(db, 'webseries'));
+      const allSeriesSnapshot = await getDocs(collection(db, "webseries"));
 
       let total = 0;
       let published = 0;
@@ -487,13 +507,21 @@ const SeriesManagement: React.FC = () => {
         if (data.isPublished) published++;
         if (data.isFeatured) featured++;
         if (data.isPremium) premium++;
-        if (data.status === 'ongoing') ongoing++;
-        if (data.status === 'completed') completed++;
+        if (data.status === "ongoing") ongoing++;
+        if (data.status === "completed") completed++;
       });
 
-      setStats({ total, published, featured, premium, totalViews, ongoing, completed });
+      setStats({
+        total,
+        published,
+        featured,
+        premium,
+        totalViews,
+        ongoing,
+        completed,
+      });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error("Error fetching stats:", error);
     }
   };
 
@@ -502,7 +530,7 @@ const SeriesManagement: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
   const handleDeleteClick = (seriesId: string, seriesTitle: string) => {
     if (!can(Permission.DELETE_ANY_CONTENT)) {
-      showToast('You do not have permission to delete series', 'error');
+      showToast("You do not have permission to delete series", "error");
       return;
     }
 
@@ -516,14 +544,49 @@ const SeriesManagement: React.FC = () => {
   const confirmDelete = async () => {
     setActionLoading(true);
     try {
-      await deleteDoc(doc(db, 'webseries', alertModal.seriesId));
+      const seriesToDelete = series.find((s) => s.id === alertModal.seriesId);
+
+      await deleteDoc(doc(db, "webseries", alertModal.seriesId));
+
+      // ✅ LOG DELETION
+      if (seriesToDelete) {
+        await logContentDelete(
+          "webseries",
+          alertModal.seriesId,
+          alertModal.seriesTitle,
+          "Web Series",
+          {
+            genre: seriesToDelete.genre,
+            language: seriesToDelete.language,
+            totalSeasons: seriesToDelete.totalSeasons,
+            totalEpisodes: seriesToDelete.totalEpisodes,
+            status: seriesToDelete.status,
+            isPremium: seriesToDelete.isPremium,
+            isFeatured: seriesToDelete.isFeatured,
+            views: seriesToDelete.views,
+          },
+        );
+      }
+
       setSeries((prev) => prev.filter((s) => s.id !== alertModal.seriesId));
-      setAlertModal({ isOpen: false, seriesId: '', seriesTitle: '' });
+      setAlertModal({ isOpen: false, seriesId: "", seriesTitle: "" });
       fetchStats();
-      showToast('Series deleted successfully!', 'success');
-    } catch (error) {
-      console.error('Error deleting series:', error);
-      showToast('Failed to delete series', 'error');
+      showToast("Series deleted successfully!", "success");
+    } catch (error: any) {
+      console.error("Error deleting series:", error);
+
+      // ✅ LOG ERROR
+      await logError(
+        "Web Series",
+        `Failed to delete series: ${error.message}`,
+        {
+          seriesId: alertModal.seriesId,
+          seriesTitle: alertModal.seriesTitle,
+          error: error.stack || error.message,
+        },
+      );
+
+      showToast("Failed to delete series", "error");
     } finally {
       setActionLoading(false);
     }
@@ -534,7 +597,7 @@ const SeriesManagement: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
   const handleEdit = (seriesId: string) => {
     if (!can(Permission.EDIT_ANY_CONTENT)) {
-      showToast('You do not have permission to edit series', 'error');
+      showToast("You do not have permission to edit series", "error");
       return;
     }
     navigate(`/admin/content/series/edit/${seriesId}`);
@@ -557,63 +620,149 @@ const SeriesManagement: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
   // ✏️ TOGGLE PUBLISH
   // ═══════════════════════════════════════════════════════════════
-  const handleTogglePublish = async (seriesId: string, currentStatus: boolean) => {
+  const handleTogglePublish = async (
+    seriesId: string,
+    currentStatus: boolean,
+  ) => {
     if (!can(Permission.EDIT_ANY_CONTENT)) {
-      showToast('You do not have permission to edit series', 'error');
+      showToast("You do not have permission to edit series", "error");
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'webseries', seriesId), {
-        isPublished: !currentStatus,
+      const seriesItem = series.find((s) => s.id === seriesId);
+      const newStatus = !currentStatus;
+
+      await updateDoc(doc(db, "webseries", seriesId), {
+        isPublished: newStatus,
         updatedAt: Timestamp.now(),
       });
 
+      // ✅ LOG PUBLISH/UNPUBLISH
+      if (seriesItem) {
+        await logContentUpdate(
+          "webseries",
+          seriesId,
+          seriesItem.title,
+          "Web Series",
+          {
+            isPublished: currentStatus,
+          },
+          {
+            isPublished: newStatus,
+            action: newStatus ? "published" : "unpublished",
+            genre: seriesItem.genre,
+            language: seriesItem.language,
+            totalSeasons: seriesItem.totalSeasons,
+            totalEpisodes: seriesItem.totalEpisodes,
+            status: seriesItem.status,
+          },
+        );
+      }
+
       setSeries((prev) =>
         prev.map((s) =>
-          s.id === seriesId ? { ...s, isPublished: !currentStatus } : s
-        )
+          s.id === seriesId ? { ...s, isPublished: newStatus } : s,
+        ),
       );
       fetchStats();
-      showToast(`Series ${!currentStatus ? 'published' : 'unpublished'} successfully!`, 'success');
-    } catch (error) {
-      console.error('Error updating status:', error);
-      showToast('Failed to update status', 'error');
+      showToast(
+        `Series ${newStatus ? "published" : "unpublished"} successfully!`,
+        "success",
+      );
+    } catch (error: any) {
+      console.error("Error updating status:", error);
+
+      // ✅ LOG ERROR
+      await logError(
+        "Web Series",
+        `Failed to update publish status: ${error.message}`,
+        {
+          seriesId,
+          currentStatus,
+          error: error.stack || error.message,
+        },
+      );
+
+      showToast("Failed to update status", "error");
     }
   };
 
   // ═══════════════════════════════════════════════════════════════
   // ⭐ TOGGLE FEATURED
   // ═══════════════════════════════════════════════════════════════
-  const handleToggleFeatured = async (seriesId: string, currentStatus: boolean) => {
+  const handleToggleFeatured = async (
+    seriesId: string,
+    currentStatus: boolean,
+  ) => {
     if (!can(Permission.EDIT_ANY_CONTENT)) {
-      showToast('You do not have permission to edit series', 'error');
+      showToast("You do not have permission to edit series", "error");
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'webseries', seriesId), {
-        isFeatured: !currentStatus,
+      const seriesItem = series.find((s) => s.id === seriesId);
+      const newStatus = !currentStatus;
+
+      await updateDoc(doc(db, "webseries", seriesId), {
+        isFeatured: newStatus,
         updatedAt: Timestamp.now(),
       });
 
+      // ✅ LOG FEATURED/UNFEATURED
+      if (seriesItem) {
+        await logContentUpdate(
+          "webseries",
+          seriesId,
+          seriesItem.title,
+          "Web Series",
+          {
+            isFeatured: currentStatus,
+          },
+          {
+            isFeatured: newStatus,
+            action: newStatus ? "featured" : "unfeatured",
+            genre: seriesItem.genre,
+            language: seriesItem.language,
+            totalSeasons: seriesItem.totalSeasons,
+            totalEpisodes: seriesItem.totalEpisodes,
+            status: seriesItem.status,
+          },
+        );
+      }
+
       setSeries((prev) =>
         prev.map((s) =>
-          s.id === seriesId ? { ...s, isFeatured: !currentStatus } : s
-        )
+          s.id === seriesId ? { ...s, isFeatured: newStatus } : s,
+        ),
       );
       fetchStats();
-      showToast(`Series ${!currentStatus ? 'featured' : 'unfeatured'} successfully!`, 'success');
-    } catch (error) {
-      console.error('Error updating featured status:', error);
-      showToast('Failed to update featured status', 'error');
+      showToast(
+        `Series ${newStatus ? "featured" : "unfeatured"} successfully!`,
+        "success",
+      );
+    } catch (error: any) {
+      console.error("Error updating featured status:", error);
+
+      // ✅ LOG ERROR
+      await logError(
+        "Web Series",
+        `Failed to update featured status: ${error.message}`,
+        {
+          seriesId,
+          currentStatus,
+          error: error.stack || error.message,
+        },
+      );
+
+      showToast("Failed to update featured status", "error");
     }
   };
 
   // ═══════════════════════════════════════════════════════════════
   // 🎉 SHOW TOAST
   // ═══════════════════════════════════════════════════════════════
-  const showToast = (message: string, type: 'success' | 'error') => {
+  const showToast = (message: string, type: "success" | "error") => {
     setToast({ isVisible: true, message, type });
   };
 
@@ -624,25 +773,27 @@ const SeriesManagement: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════
   // 🔍 FILTER SERIES
   // ═══════════════════════════════════════════════════════════════
-  const filteredSeries = series.filter((s) =>
-    s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.titleHindi && s.titleHindi.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredSeries = series.filter(
+    (s) =>
+      s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.titleHindi &&
+        s.titleHindi.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // ═══════════════════════════════════════════════════════════════
   // 🎨 FORMAT HELPERS
   // ═══════════════════════════════════════════════════════════════
   const formatRating = (rating: any): string => {
-    if (typeof rating === 'number') return rating.toFixed(1);
-    if (rating && typeof rating === 'object' && 'average' in rating) {
-      return rating.average?.toFixed(1) || '0.0';
+    if (typeof rating === "number") return rating.toFixed(1);
+    if (rating && typeof rating === "object" && "average" in rating) {
+      return rating.average?.toFixed(1) || "0.0";
     }
-    return '0.0';
+    return "0.0";
   };
 
   const formatViews = (views: number): string => {
-    if (views >= 1000000) return (views / 1000000).toFixed(1) + 'M';
-    if (views >= 1000) return (views / 1000).toFixed(1) + 'K';
+    if (views >= 1000000) return (views / 1000000).toFixed(1) + "M";
+    if (views >= 1000) return (views / 1000).toFixed(1) + "K";
     return views.toString();
   };
 
@@ -653,14 +804,14 @@ const SeriesManagement: React.FC = () => {
 
   const getStatusBadge = (status: string | undefined) => {
     switch (status) {
-      case 'ongoing':
-        return { text: 'Ongoing', class: 'bg-blue-500' };
-      case 'completed':
-        return { text: 'Completed', class: 'bg-green-500' };
-      case 'upcoming':
-        return { text: 'Upcoming', class: 'bg-purple-500' };
+      case "ongoing":
+        return { text: "Ongoing", class: "bg-blue-500" };
+      case "completed":
+        return { text: "Completed", class: "bg-green-500" };
+      case "upcoming":
+        return { text: "Upcoming", class: "bg-purple-500" };
       default:
-        return { text: 'Unknown', class: 'bg-gray-500' };
+        return { text: "Unknown", class: "bg-gray-500" };
     }
   };
 
@@ -677,7 +828,9 @@ const SeriesManagement: React.FC = () => {
       {/* Delete Confirmation Modal */}
       <AlertModal
         isOpen={alertModal.isOpen}
-        onClose={() => setAlertModal({ isOpen: false, seriesId: '', seriesTitle: '' })}
+        onClose={() =>
+          setAlertModal({ isOpen: false, seriesId: "", seriesTitle: "" })
+        }
         onConfirm={confirmDelete}
         title="Delete Series?"
         message={`Are you sure you want to delete "${alertModal.seriesTitle}"? This will also delete all seasons and episodes. This action cannot be undone.`}
@@ -707,14 +860,16 @@ const SeriesManagement: React.FC = () => {
                 <TrendingUp size={36} />
                 Series Management
               </h1>
-              <p className="text-white/90 text-lg">Manage your web series collection</p>
+              <p className="text-white/90 text-lg">
+                Manage your web series collection
+              </p>
             </div>
 
             {can(Permission.UPLOAD_CONTENT) && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/admin/content/series/add')}
+                onClick={() => navigate("/admin/content/series/add")}
                 className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold flex items-center gap-3 shadow-2xl hover:shadow-3xl transition-all"
               >
                 <Plus size={24} />
@@ -731,27 +886,39 @@ const SeriesManagement: React.FC = () => {
             </div>
             <div className="bg-white/20 backdrop-blur-xl rounded-2xl p-5">
               <p className="text-white/80 text-sm mb-1">Published</p>
-              <p className="text-4xl font-black text-green-300">{stats.published}</p>
+              <p className="text-4xl font-black text-green-300">
+                {stats.published}
+              </p>
             </div>
             <div className="bg-white/20 backdrop-blur-xl rounded-2xl p-5">
               <p className="text-white/80 text-sm mb-1">Featured</p>
-              <p className="text-4xl font-black text-yellow-300">{stats.featured}</p>
+              <p className="text-4xl font-black text-yellow-300">
+                {stats.featured}
+              </p>
             </div>
             <div className="bg-white/20 backdrop-blur-xl rounded-2xl p-5">
               <p className="text-white/80 text-sm mb-1">Premium</p>
-              <p className="text-4xl font-black text-orange-300">{stats.premium}</p>
+              <p className="text-4xl font-black text-orange-300">
+                {stats.premium}
+              </p>
             </div>
             <div className="bg-white/20 backdrop-blur-xl rounded-2xl p-5">
               <p className="text-white/80 text-sm mb-1">Ongoing</p>
-              <p className="text-4xl font-black text-blue-300">{stats.ongoing}</p>
+              <p className="text-4xl font-black text-blue-300">
+                {stats.ongoing}
+              </p>
             </div>
             <div className="bg-white/20 backdrop-blur-xl rounded-2xl p-5">
               <p className="text-white/80 text-sm mb-1">Completed</p>
-              <p className="text-4xl font-black text-teal-300">{stats.completed}</p>
+              <p className="text-4xl font-black text-teal-300">
+                {stats.completed}
+              </p>
             </div>
             <div className="bg-white/20 backdrop-blur-xl rounded-2xl p-5">
               <p className="text-white/80 text-sm mb-1">Total Views</p>
-              <p className="text-4xl font-black">{formatViews(stats.totalViews)}</p>
+              <p className="text-4xl font-black">
+                {formatViews(stats.totalViews)}
+              </p>
             </div>
           </div>
         </div>
@@ -769,7 +936,10 @@ const SeriesManagement: React.FC = () => {
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              size={20}
+            />
             <input
               type="text"
               placeholder="Search series by title..."
@@ -826,10 +996,12 @@ const SeriesManagement: React.FC = () => {
         <div className="flex flex-col items-center justify-center h-96 gap-4">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full"
           />
-          <p className="text-slate-600 dark:text-slate-400 font-semibold">Loading series...</p>
+          <p className="text-slate-600 dark:text-slate-400 font-semibold">
+            Loading series...
+          </p>
         </div>
       ) : filteredSeries.length > 0 ? (
         <>
@@ -860,7 +1032,8 @@ const SeriesManagement: React.FC = () => {
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src =
-                          'https://via.placeholder.com/300x450/6366f1/ffffff?text=' + encodeURIComponent(seriesItem.title);
+                          "https://via.placeholder.com/300x450/6366f1/ffffff?text=" +
+                          encodeURIComponent(seriesItem.title);
                       }}
                     />
 
@@ -868,8 +1041,14 @@ const SeriesManagement: React.FC = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <div className="absolute bottom-4 left-4 right-4">
                         <div className="flex items-center gap-2 mb-2">
-                          <Star size={16} className="text-yellow-400" fill="currentColor" />
-                          <span className="text-white font-bold">{formatRating(seriesItem.rating)}</span>
+                          <Star
+                            size={16}
+                            className="text-yellow-400"
+                            fill="currentColor"
+                          />
+                          <span className="text-white font-bold">
+                            {formatRating(seriesItem.rating)}
+                          </span>
                           <span className="text-white/80 text-sm ml-auto flex items-center gap-1">
                             <Eye size={14} />
                             {formatViews(seriesItem.views || 0)}
@@ -891,7 +1070,9 @@ const SeriesManagement: React.FC = () => {
                           Featured
                         </span>
                       )}
-                      <span className={`px-3 py-1 ${statusBadge.class} text-white rounded-full text-xs font-bold shadow-lg`}>
+                      <span
+                        className={`px-3 py-1 ${statusBadge.class} text-white rounded-full text-xs font-bold shadow-lg`}
+                      >
                         {statusBadge.text}
                       </span>
                     </div>
@@ -914,7 +1095,11 @@ const SeriesManagement: React.FC = () => {
                         onClick={() => handleView(seriesItem.id)}
                         className="w-20 h-20 bg-white/90 backdrop-blur-xl rounded-full flex items-center justify-center shadow-2xl"
                       >
-                        <Play size={32} className="text-indigo-600 ml-1" fill="currentColor" />
+                        <Play
+                          size={32}
+                          className="text-indigo-600 ml-1"
+                          fill="currentColor"
+                        />
                       </motion.button>
                     </div>
                   </div>
@@ -977,7 +1162,9 @@ const SeriesManagement: React.FC = () => {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleDeleteClick(seriesItem.id, seriesItem.title)}
+                          onClick={() =>
+                            handleDeleteClick(seriesItem.id, seriesItem.title)
+                          }
                           className="px-3 py-2 bg-red-500 text-white rounded-xl font-semibold text-sm hover:bg-red-600 transition-all"
                         >
                           <Trash2 size={16} />
@@ -1005,25 +1192,37 @@ const SeriesManagement: React.FC = () => {
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => handleTogglePublish(seriesItem.id, seriesItem.isPublished || false)}
-                            className={`flex-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${seriesItem.isPublished
-                              ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30'
-                              : 'bg-green-100 text-green-600 dark:bg-green-900/30'
-                              }`}
+                            onClick={() =>
+                              handleTogglePublish(
+                                seriesItem.id,
+                                seriesItem.isPublished || false,
+                              )
+                            }
+                            className={`flex-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                              seriesItem.isPublished
+                                ? "bg-orange-100 text-orange-600 dark:bg-orange-900/30"
+                                : "bg-green-100 text-green-600 dark:bg-green-900/30"
+                            }`}
                           >
-                            {seriesItem.isPublished ? 'Unpublish' : 'Publish'}
+                            {seriesItem.isPublished ? "Unpublish" : "Publish"}
                           </motion.button>
 
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => handleToggleFeatured(seriesItem.id, seriesItem.isFeatured || false)}
-                            className={`flex-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${seriesItem.isFeatured
-                              ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30'
-                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800'
-                              }`}
+                            onClick={() =>
+                              handleToggleFeatured(
+                                seriesItem.id,
+                                seriesItem.isFeatured || false,
+                              )
+                            }
+                            className={`flex-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                              seriesItem.isFeatured
+                                ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-800"
+                            }`}
                           >
-                            {seriesItem.isFeatured ? '⭐ Featured' : 'Feature'}
+                            {seriesItem.isFeatured ? "⭐ Featured" : "Feature"}
                           </motion.button>
                         </>
                       )}
@@ -1054,16 +1253,23 @@ const SeriesManagement: React.FC = () => {
           animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center h-96 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700"
         >
-          <TrendingUp size={64} className="text-slate-300 dark:text-slate-700 mb-4" />
-          <h3 className="text-xl font-bold text-slate-600 dark:text-slate-400 mb-2">No Series Found</h3>
+          <TrendingUp
+            size={64}
+            className="text-slate-300 dark:text-slate-700 mb-4"
+          />
+          <h3 className="text-xl font-bold text-slate-600 dark:text-slate-400 mb-2">
+            No Series Found
+          </h3>
           <p className="text-slate-500 dark:text-slate-500 mb-6">
-            {searchTerm ? 'Try different search terms' : 'Start by adding your first series'}
+            {searchTerm
+              ? "Try different search terms"
+              : "Start by adding your first series"}
           </p>
           {can(Permission.UPLOAD_CONTENT) && !searchTerm && (
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/admin/content/series/add')}
+              onClick={() => navigate("/admin/content/series/add")}
               className="px-8 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all flex items-center gap-2"
             >
               <Plus size={20} />

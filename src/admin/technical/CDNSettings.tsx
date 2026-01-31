@@ -29,6 +29,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { logCDNAction, logError } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -259,6 +260,37 @@ const CDNSettings: React.FC = () => {
     }
   };
 
+  const handlePurgeCache = async () => {
+    if (!config.enabled) {
+      showToast("CDN is not enabled", "warning");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Are you sure you want to purge all cached content? This will temporarily increase server load.",
+      )
+    ) {
+      return;
+    }
+
+    setPurging(true);
+    showToast("Purging CDN cache...", "info");
+
+    // In real app, call CDN provider API to purge cache
+    setTimeout(async () => {
+      setPurging(false);
+      showToast("Cache purged successfully!", "success");
+
+      // ✅ ADD LOGGING
+      await logCDNAction("purge_cache", {
+        provider: config.provider,
+        cdnUrl: config.cdnUrl,
+        activeRegions: config.regions.filter((r) => r.enabled).length,
+      });
+    }, 3000);
+  };
+
   const getDefaultRegions = (): CDNRegion[] => {
     return [
       {
@@ -347,10 +379,29 @@ const CDNSettings: React.FC = () => {
       // Recalculate stats after save
       await calculateStats();
 
+      // ✅ ENHANCED LOGGING with region details
+      await logCDNAction("update_config", {
+        provider: config.provider,
+        enabled: config.enabled,
+        cdnUrl: config.cdnUrl,
+        caching: config.caching,
+        cacheTTL: config.cacheTTL,
+        activeRegions: config.regions.filter((r) => r.enabled).length,
+        totalRegions: config.regions.length,
+        enabledRegionNames: config.regions
+          .filter((r) => r.enabled)
+          .map((r) => r.name),
+      });
+
       setSaving(false);
     } catch (error) {
       console.error("Error saving CDN settings:", error);
       showToast("Failed to save CDN settings", "error");
+
+      await logError("CDN Settings", "Failed to save CDN configuration", {
+        error,
+      });
+
       setSaving(false);
     }
   };
@@ -365,34 +416,17 @@ const CDNSettings: React.FC = () => {
     showToast("Testing CDN connection...", "info");
 
     // Simulate test (in real app, make actual API call to CDN provider)
-    setTimeout(() => {
+    setTimeout(async () => {
       setTesting(false);
       showToast("CDN connection successful!", "success");
+
+      // ✅ ADD LOGGING
+      await logCDNAction("test_connection", {
+        provider: config.provider,
+        cdnUrl: config.cdnUrl,
+        status: "success",
+      });
     }, 2000);
-  };
-
-  const handlePurgeCache = async () => {
-    if (!config.enabled) {
-      showToast("CDN is not enabled", "warning");
-      return;
-    }
-
-    if (
-      !window.confirm(
-        "Are you sure you want to purge all cached content? This will temporarily increase server load.",
-      )
-    ) {
-      return;
-    }
-
-    setPurging(true);
-    showToast("Purging CDN cache...", "info");
-
-    // In real app, call CDN provider API to purge cache
-    setTimeout(() => {
-      setPurging(false);
-      showToast("Cache purged successfully!", "success");
-    }, 3000);
   };
 
   const toggleRegion = (code: string) => {

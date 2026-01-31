@@ -46,9 +46,9 @@ const DEFAULT_CDN_SETTINGS: CDNSettings = {
   pullZone: '',
   caching: true,
   cacheTTL: 3600,
-  gcsBucket: process.env.REACT_APP_GCS_BUCKET_NAME || '',
-  gcsProjectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || '',
-  useFirebaseCDN: process.env.REACT_APP_USE_FIREBASE_CDN === 'true',
+  gcsBucket: (import.meta.env?.VITE_GCS_BUCKET_NAME || ''),
+  gcsProjectId: (import.meta.env?.VITE_FIREBASE_PROJECT_ID || ''),
+  useFirebaseCDN: (import.meta.env?.VITE_USE_FIREBASE_CDN === 'true'),
 };
 
 const DEFAULT_ENCODING_SETTINGS: EncodingSettings = {
@@ -69,7 +69,7 @@ const DEFAULT_ENCODING_SETTINGS: EncodingSettings = {
 export const getCDNSettings = async (): Promise<CDNSettings> => {
   try {
     const cdnDoc = await getDoc(doc(db, 'settings', 'cdn'));
-    
+
     if (cdnDoc.exists()) {
       const data = cdnDoc.data() as Partial<CDNSettings>;
       return {
@@ -77,7 +77,7 @@ export const getCDNSettings = async (): Promise<CDNSettings> => {
         ...data,
       };
     }
-    
+
     // Return defaults with Google CDN enabled
     return DEFAULT_CDN_SETTINGS;
   } catch (error) {
@@ -90,14 +90,14 @@ export const getCDNSettings = async (): Promise<CDNSettings> => {
 export const getEncodingSettings = async (): Promise<EncodingSettings> => {
   try {
     const encodingDoc = await getDoc(doc(db, 'settings', 'encoding'));
-    
+
     if (encodingDoc.exists()) {
       return {
         ...DEFAULT_ENCODING_SETTINGS,
         ...encodingDoc.data() as EncodingSettings,
       };
     }
-    
+
     return DEFAULT_ENCODING_SETTINGS;
   } catch (error) {
     console.error('Error fetching encoding settings:', error);
@@ -116,19 +116,19 @@ export const buildCDNUrl = (originalUrl: string, cdnSettings: CDNSettings): stri
     if (cdnSettings.provider === 'google' || cdnSettings.provider === 'firebase') {
       // Firebase Storage already uses Google's CDN
       // Format: https://firebasestorage.googleapis.com/v0/b/[bucket]/o/[path]?alt=media
-      
+
       if (cdnSettings.useFirebaseCDN) {
         // Firebase Storage URL is already CDN-optimized
         return originalUrl;
       }
-      
+
       // Custom Google Cloud CDN domain
       if (cdnSettings.cdnUrl) {
         const url = new URL(originalUrl);
         const cdnBase = new URL(cdnSettings.cdnUrl);
         return originalUrl.replace(url.origin, cdnBase.origin);
       }
-      
+
       // Use Google Cloud Storage public URL format
       if (cdnSettings.gcsBucket && originalUrl.includes('firebasestorage.googleapis.com')) {
         // Extract file path from Firebase Storage URL
@@ -138,7 +138,7 @@ export const buildCDNUrl = (originalUrl: string, cdnSettings: CDNSettings): stri
           return `https://storage.googleapis.com/${cdnSettings.gcsBucket}/${filePath}`;
         }
       }
-      
+
       return originalUrl;
     }
 
@@ -147,7 +147,7 @@ export const buildCDNUrl = (originalUrl: string, cdnSettings: CDNSettings): stri
       if (!cdnSettings.cdnUrl) {
         return originalUrl;
       }
-      
+
       const url = new URL(originalUrl);
       const cdnBase = new URL(cdnSettings.cdnUrl);
       return originalUrl.replace(url.origin, cdnBase.origin);
@@ -158,12 +158,12 @@ export const buildCDNUrl = (originalUrl: string, cdnSettings: CDNSettings): stri
       if (!cdnSettings.pullZone) {
         return originalUrl;
       }
-      
+
       const url = new URL(originalUrl);
       const path = url.pathname;
       return `https://${cdnSettings.pullZone}.b-cdn.net${path}`;
     }
-    
+
     return originalUrl;
   } catch (error) {
     console.error('Error building CDN URL:', error);
@@ -178,18 +178,18 @@ export const generateGoogleCDNUrl = (filePath: string, cdnSettings: CDNSettings)
     if (cdnSettings.cdnUrl) {
       return `${cdnSettings.cdnUrl}/${filePath}`;
     }
-    
+
     // Option 2: Use Firebase Storage CDN URL
     if (cdnSettings.useFirebaseCDN && cdnSettings.gcsBucket) {
       const encodedPath = encodeURIComponent(filePath);
       return `https://firebasestorage.googleapis.com/v0/b/${cdnSettings.gcsBucket}/o/${encodedPath}?alt=media`;
     }
-    
+
     // Option 3: Use Google Cloud Storage public URL
     if (cdnSettings.gcsBucket) {
       return `https://storage.googleapis.com/${cdnSettings.gcsBucket}/${filePath}`;
     }
-    
+
     return '';
   } catch (error) {
     console.error('Error generating Google CDN URL:', error);
@@ -205,7 +205,7 @@ export const isCDNUrl = (url: string): boolean => {
     'cdn.cloudflare.com',
     'b-cdn.net',
   ];
-  
+
   return cdnDomains.some(domain => url.includes(domain));
 };
 

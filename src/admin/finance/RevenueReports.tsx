@@ -109,7 +109,7 @@ const RevenueReports: React.FC = () => {
     });
 
     // Filters
-    const [timeRange, setTimeRange] = useState<string>("6months");
+    const [timeRange, _setTimeRange] = useState<string>("6months");
 
     // Toast
     const [toast, setToast] = useState({

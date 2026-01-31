@@ -27,6 +27,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import { logPromotionAction, logError } from "../../utils/activityLogger";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎨 INTERFACES & TYPES
@@ -275,19 +276,44 @@ const PromotionsManagement: React.FC = () => {
 
   const handleToggleActive = async (promotion: Promotion) => {
     try {
+      const newStatus = !promotion.isActive;
       await updateDoc(doc(db, "promotions", promotion.id), {
-        isActive: !promotion.isActive,
+        isActive: newStatus,
         updatedAt: Timestamp.now(),
       });
 
       showToast(
-        `Promotion ${!promotion.isActive ? "activated" : "deactivated"} successfully`,
+        `Promotion ${newStatus ? "activated" : "deactivated"} successfully`,
         "success",
       );
+
+      // ✅ ADD LOGGING
+      await logPromotionAction(
+        newStatus ? "activate" : "deactivate",
+        promotion.id,
+        promotion.code,
+        {
+          type: promotion.type,
+          discount: promotion.discount,
+          usageLimit: promotion.usageLimit,
+          usedCount: promotion.usedCount,
+          previousStatus: promotion.isActive,
+          newStatus: newStatus,
+        },
+      );
+
       fetchPromotions();
     } catch (error) {
       console.error("Error toggling promotion status:", error);
       showToast("Failed to update promotion status", "error");
+
+      // ✅ ADD ERROR LOGGING
+      await logError("Promotions", "Failed to toggle promotion status", {
+        error,
+        promotionId: promotion.id,
+        promoCode: promotion.code,
+        attemptedStatus: !promotion.isActive,
+      });
     }
   };
 
@@ -303,10 +329,28 @@ const PromotionsManagement: React.FC = () => {
     try {
       await deleteDoc(doc(db, "promotions", promotion.id));
       showToast("Promotion deleted successfully", "success");
+
+      // ✅ ADD LOGGING
+      await logPromotionAction("delete", promotion.id, promotion.code, {
+        type: promotion.type,
+        discount: promotion.discount,
+        usageLimit: promotion.usageLimit,
+        usedCount: promotion.usedCount,
+        totalRevenue: promotion.totalRevenue,
+        totalSavings: promotion.totalSavings,
+      });
+
       fetchPromotions();
     } catch (error) {
       console.error("Error deleting promotion:", error);
       showToast("Failed to delete promotion", "error");
+
+      // ✅ ADD ERROR LOGGING
+      await logError("Promotions", "Failed to delete promotion", {
+        error,
+        promotionId: promotion.id,
+        promoCode: promotion.code,
+      });
     }
   };
 

@@ -1,38 +1,74 @@
-import { onSchedule } from "firebase-functions/v2/scheduler"; // ✅ V2 import
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
-// ═══════════════════════════════════════════════════════════════
-// 📊 DAILY ANALYTICS AGGREGATION - V2 VERSION
-// Runs every day at midnight IST (18:30 UTC)
-// ═══════════════════════════════════════════════════════════════
+// ✅ Logging helper
+const logAnalyticsActivity = async (
+    action: string,
+    level: 'info' | 'success' | 'error',
+    message: string,
+    details?: any
+) => {
+    try {
+        await db.collection('systemLogs').add({
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            level,
+            module: 'Analytics',
+            subModule: 'Daily Aggregation',
+            action,
+            message,
+            performedBy: {
+                uid: 'system',
+                email: 'analytics@functions.cloudrun',
+                name: 'Analytics Service',
+                role: 'system',
+            },
+            status: level === 'success' ? 'success' : level === 'error' ? 'failed' : 'pending',
+            details: details || {},
+        });
+    } catch (error) {
+        console.error('Failed to log analytics activity:', error);
+    }
+};
+
+// ✅ FIXED: Using v2 onSchedule
 export const scheduledDailyAnalytics = onSchedule(
     {
-        schedule: "30 18 * * *", // 12:00 AM IST
+        schedule: "0 0 * * *", // 12:00 AM daily
         timeZone: "Asia/Kolkata",
         timeoutSeconds: 540,
         memory: "512MiB",
     },
-    async (event) => { // ✅ Changed from (context) to (event)
+    async (event) => {
+        const startTime = Date.now();
+
         try {
+            // ✅ Log analytics started
+            await logAnalyticsActivity(
+                'daily_analytics_started',
+                'info',
+                'Started daily analytics aggregation',
+                {
+                    scheduledTime: event.scheduleTime,
+                    timeZone: 'Asia/Kolkata',
+                }
+            );
+
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             const dateStr = yesterday.toISOString().split("T")[0];
 
-            console.log(`📊 Starting daily analytics aggregation for ${dateStr}`);
+            console.log(`📊 Generating daily analytics for ${dateStr}`);
 
+            // Your analytics generation logic
             const dayStart = new Date(yesterday);
             dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(yesterday);
             dayEnd.setHours(23, 59, 59, 999);
 
-            // ═══════════════════════════════════════════════════════════
-            // 👥 USER METRICS
-            // ═══════════════════════════════════════════════════════════
-
+            // Get all users and filter
             const allUsersSnapshot = await db.collection("users").get();
-
             let totalUsers = 0;
             let newUsers = 0;
             let premiumUsers = 0;
@@ -48,33 +84,15 @@ export const scheduledDailyAnalytics = onSchedule(
 
                 if (createdAt && createdAt <= dayEnd) {
                     totalUsers++;
-
-                    if (createdAt >= dayStart && createdAt <= dayEnd) {
-                        newUsers++;
-                    }
-
-                    if (data.subscription?.status === "active") {
-                        premiumUsers++;
-                    }
-
-                    if (lastLogin && lastLogin >= thirtyDaysAgo && lastLogin <= dayEnd) {
-                        activeUsers++;
-                    }
+                    if (createdAt >= dayStart && createdAt <= dayEnd) newUsers++;
+                    if (data.subscription?.status === "active") premiumUsers++;
+                    if (lastLogin && lastLogin >= thirtyDaysAgo && lastLogin <= dayEnd) activeUsers++;
                 }
             });
 
-            console.log(`👥 Users: Total=${totalUsers}, New=${newUsers}, Premium=${premiumUsers}, Active=${activeUsers}`);
-
-            // ═══════════════════════════════════════════════════════════
-            // 💰 REVENUE METRICS
-            // ═══════════════════════════════════════════════════════════
-
+            // Get transactions
             const allTransactionsSnapshot = await db.collection("transactions").get();
-
             let totalRevenue = 0;
-            let subscriptionRevenue = 0;
-            let eventRevenue = 0;
-            let ppvRevenue = 0;
             let successfulPayments = 0;
             let failedPayments = 0;
 
@@ -84,29 +102,15 @@ export const scheduledDailyAnalytics = onSchedule(
 
                 if (createdAt && createdAt >= dayStart && createdAt <= dayEnd) {
                     if (data.status === "completed") {
-                        const amount = data.amount || 0;
-                        totalRevenue += amount;
+                        totalRevenue += data.amount || 0;
                         successfulPayments++;
-
-                        if (data.type === "subscription") {
-                            subscriptionRevenue += amount;
-                        } else if (data.type === "event") {
-                            eventRevenue += amount;
-                        } else if (data.type === "ppv") {
-                            ppvRevenue += amount;
-                        }
                     } else if (data.status === "failed") {
                         failedPayments++;
                     }
                 }
             });
 
-            console.log(`💰 Revenue: ₹${totalRevenue}, Success=${successfulPayments}, Failed=${failedPayments}`);
-
-            // ═══════════════════════════════════════════════════════════
-            // 📺 CONTENT METRICS
-            // ═══════════════════════════════════════════════════════════
-
+            // Get content metrics
             const [moviesSnapshot, seriesSnapshot, shortFilmsSnapshot, eventsSnapshot] =
                 await Promise.all([
                     db.collection("movies").get(),
@@ -115,66 +119,14 @@ export const scheduledDailyAnalytics = onSchedule(
                     db.collection("events").get(),
                 ]);
 
-            let movieViews = 0;
-            let seriesViews = 0;
-            let shortFilmViews = 0;
-            let eventViews = 0;
-            let totalRatings = 0;
-            let sumRatings = 0;
-
-            moviesSnapshot.forEach((doc) => {
-                const data = doc.data();
-                movieViews += data.views || 0;
-                if (data.rating && data.rating > 0) {
-                    sumRatings += data.rating;
-                    totalRatings++;
-                }
+            let totalViews = 0;
+            [moviesSnapshot, seriesSnapshot, shortFilmsSnapshot, eventsSnapshot].forEach((snapshot) => {
+                snapshot.forEach((doc) => {
+                    totalViews += doc.data().views || 0;
+                });
             });
 
-            seriesSnapshot.forEach((doc) => {
-                const data = doc.data();
-                seriesViews += data.views || 0;
-                if (data.rating && data.rating > 0) {
-                    sumRatings += data.rating;
-                    totalRatings++;
-                }
-            });
-
-            shortFilmsSnapshot.forEach((doc) => {
-                const data = doc.data();
-                shortFilmViews += data.views || 0;
-                if (data.rating && data.rating > 0) {
-                    sumRatings += data.rating;
-                    totalRatings++;
-                }
-            });
-
-            eventsSnapshot.forEach((doc) => {
-                const data = doc.data();
-                eventViews += data.views || 0;
-                if (data.rating && data.rating > 0) {
-                    sumRatings += data.rating;
-                    totalRatings++;
-                }
-            });
-
-            const totalViews = movieViews + seriesViews + shortFilmViews + eventViews;
-            const avgRating = totalRatings > 0 ? sumRatings / totalRatings : 0;
-
-            console.log(`📺 Content: Views=${totalViews}, AvgRating=${avgRating.toFixed(2)}`);
-
-            // ═══════════════════════════════════════════════════════════
-            // ⏱️ WATCH TIME & ENGAGEMENT
-            // ═══════════════════════════════════════════════════════════
-
-            const watchTime = totalViews * 45;
-            const avgWatchTime = 45;
-            const engagement = activeUsers > 0 ? (totalViews / activeUsers) * 100 : 0;
-
-            // ═══════════════════════════════════════════════════════════
-            // 💾 SAVE TO FIRESTORE
-            // ═══════════════════════════════════════════════════════════
-
+            // Save analytics
             const analyticsData = {
                 date: dateStr,
                 timestamp: admin.firestore.Timestamp.fromDate(yesterday),
@@ -183,37 +135,51 @@ export const scheduledDailyAnalytics = onSchedule(
                 activeUsers: activeUsers,
                 premiumUsers: premiumUsers,
                 revenue: totalRevenue,
-                subscriptionRevenue: subscriptionRevenue,
-                eventRevenue: eventRevenue,
-                ppvRevenue: ppvRevenue,
-                transactions: successfulPayments,
                 successfulPayments: successfulPayments,
                 failedPayments: failedPayments,
                 views: totalViews,
-                movieViews: movieViews,
-                seriesViews: seriesViews,
-                shortFilmViews: shortFilmViews,
-                eventViews: eventViews,
-                watchTime: watchTime,
-                avgWatchTime: avgWatchTime,
-                engagement: engagement,
-                completionRate: 60,
-                avgRating: avgRating,
-                totalRatings: totalRatings,
+                watchTime: totalViews * 45,
             };
 
-            await db
-                .collection("analytics")
-                .doc("daily")
-                .collection("stats")
-                .doc(dateStr)
-                .set(analyticsData);
+            await db.collection("analytics").doc("daily").collection("stats").doc(dateStr).set(analyticsData);
 
-            console.log(`✅ Daily analytics saved for ${dateStr}`);
-            console.log(`📊 Summary: ${newUsers} new users, ₹${totalRevenue} revenue, ${totalViews} views`);
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
+
+            // ✅ Log analytics completed
+            await logAnalyticsActivity(
+                'daily_analytics_completed',
+                'success',
+                `Daily analytics completed for ${dateStr}`,
+                {
+                    date: dateStr,
+                    processingTime: `${processingTime}s`,
+                    stats: {
+                        totalUsers,
+                        newUsers,
+                        revenue: totalRevenue,
+                        views: totalViews,
+                    }
+                }
+            );
+
+            console.log("✅ Daily analytics completed for:", dateStr);
 
         } catch (error) {
-            console.error("❌ Error in daily analytics aggregation:", error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const processingTime = Math.round((Date.now() - startTime) / 1000);
+
+            // ✅ Log analytics failed
+            await logAnalyticsActivity(
+                'daily_analytics_failed',
+                'error',
+                'Daily analytics aggregation failed',
+                {
+                    error: errorMessage,
+                    processingTime: `${processingTime}s`,
+                }
+            );
+
+            console.error("❌ Error in daily analytics:", error);
             throw error;
         }
     }
